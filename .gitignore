@@ -2,7 +2,7 @@
 __pycache__/
 *.py[cod]
 *.egg-info/
-.venv/
+.venv*/
 venv/
 *.so
 
@@ -31,6 +31,9 @@ dist/
 # OS
 .DS_Store
 Thumbs.db
+
+# Temp files
+*.docx
 
 # Docker
 .dockerignore

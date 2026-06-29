@@ -1,0 +1,14 @@
+services:
+  api:
+    build:
+      context: .
+      target: dev
+    environment:
+      DATABASE_URL: sqlite+aiosqlite:///chaos_toolkit.db
+      API_KEY: dev-api-key
+      LOG_LEVEL: info
+    ports:
+      - "8002:8002"
+    volumes:
+      - ./src:/app/src
+      - ./tests:/app/tests

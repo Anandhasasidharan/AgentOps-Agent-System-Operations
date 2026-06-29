@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+*.so
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment
+.env
+*.db
+
+# Testing & Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.coverage.*
+*.coverage
+
+# Build
+build/
+dist/
+*.egg
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+.dockerignore

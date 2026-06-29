@@ -1,0 +1,50 @@
+apiVersion: chaosops.io/v1
+kind: ChaosScenario
+metadata:
+  name: llm-timeout
+  description: LLM takes too long to respond
+spec:
+  target: llm
+  failure_mode: timeout
+  config:
+    params:
+      delay_seconds: 35
+  expected_behavior: graceful_degradation
+  agent_should_survive: true
+---
+apiVersion: chaosops.io/v1
+kind: ChaosScenario
+metadata:
+  name: tool-crash
+  description: Tool returns 500 error
+spec:
+  target: tool
+  failure_mode: crash
+  config:
+    params:
+      error_type: InternalServerError
+      error_message: Database connection pool exhausted
+  expected_behavior: error_handled
+  agent_should_survive: true
+---
+apiVersion: chaosops.io/v1
+kind: ChaosScenario
+metadata:
+  name: rag-no-results
+  description: RAG returns no matching documents
+spec:
+  target: rag
+  failure_mode: no_results
+  expected_behavior: graceful_degradation
+  agent_should_survive: true
+---
+apiVersion: chaosops.io/v1
+kind: ChaosScenario
+metadata:
+  name: mcp-server-down
+  description: MCP server is unreachable
+spec:
+  target: mcp
+  failure_mode: server_down
+  expected_behavior: fail_fast
+  agent_should_survive: true

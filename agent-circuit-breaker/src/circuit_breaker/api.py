@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 from contextlib import asynccontextmanager
 from typing import Any
+from time import time
 
 from fastapi import Depends, FastAPI, Query
 from sqlalchemy import select
@@ -43,6 +44,10 @@ from circuit_breaker.schemas import (
     ToolCallOut,
 )
 from circuit_breaker.state_tracker import update_agent_state
+from circuit_breaker.metrics import (
+    tool_calls_total, tool_duration_seconds, policies_total,
+    kill_switches_active, incidents_total, add_metrics_route,
+)
 
 settings = Settings()
 
@@ -57,6 +62,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Agent Circuit Breaker", version="0.1.0", lifespan=lifespan)
 
+add_metrics_route(app)
 get_tenant = make_get_tenant(get_db)
 
 
@@ -74,6 +80,7 @@ async def intercept(
     tenant = Depends(get_tenant),
     session: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
+    t0 = time()
     result = await intercept_tool_call(
         session=session,
         tenant_id=tenant.id,
@@ -87,6 +94,9 @@ async def intercept(
         cost=data.cost,
         tenant_slug=tenant.slug,
     )
+    verdict = result.get("decision", "allow")
+    tool_calls_total.labels(verdict=verdict, tool_name=data.tool_name).inc()
+    tool_duration_seconds.labels(verdict=verdict, tool_name=data.tool_name).observe(time() - t0)
     return result
 
 
@@ -113,6 +123,7 @@ async def create_policy(
     session.add(policy)
     await session.commit()
     await session.refresh(policy)
+    policies_total.labels(tenant_id=str(tenant.id)).inc()
     return policy
 
 
@@ -189,6 +200,7 @@ async def activate_kill(
     )
     await session.commit()
     await session.refresh(ks)
+    kill_switches_active.labels(agent_id=agent_id, tenant_id=str(tenant.id)).inc()
     return ks
 
 
@@ -203,6 +215,7 @@ async def release_kill(
         raise HTTPException(status_code=404, detail="No active kill switch for this agent")
     await session.commit()
     await session.refresh(ks)
+    kill_switches_active.labels(agent_id=agent_id, tenant_id=str(tenant.id)).set(0)
     return ks
 
 

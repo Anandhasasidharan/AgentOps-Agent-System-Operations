@@ -1,0 +1,113 @@
+{
+  "title": "AgentOps Platform",
+  "tags": ["agentops"],
+  "schemaVersion": 38,
+  "version": 1,
+  "time": { "from": "now-15m", "to": "now" },
+  "timepicker": {},
+  "panels": [
+    {
+      "title": "Tool Call Rate",
+      "type": "graph",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "rate(cb_tool_calls_total[1m])",
+          "legendFormat": "{{verdict}} - {{tool_name}}"
+        }
+      ]
+    },
+    {
+      "title": "Tool Call Duration (p50/p95)",
+      "type": "graph",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 0 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(cb_tool_duration_seconds_bucket[1m])) by (le, verdict))",
+          "legendFormat": "p50 {{verdict}}"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(cb_tool_duration_seconds_bucket[1m])) by (le, verdict))",
+          "legendFormat": "p95 {{verdict}}"
+        }
+      ]
+    },
+    {
+      "title": "Kill Switches Active",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 0 },
+      "targets": [
+        { "expr": "sum(cb_kill_switches_active)" }
+      ]
+    },
+    {
+      "title": "Experiment Pass Rate",
+      "type": "graph",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 8 },
+      "targets": [
+        {
+          "expr": "rate(chaos_experiments_total{status=\"passed\"}[1m])",
+          "legendFormat": "passed"
+        },
+        {
+          "expr": "rate(chaos_experiments_total{status=\"failed\"}[1m])",
+          "legendFormat": "failed"
+        }
+      ]
+    },
+    {
+      "title": "Resilience Score",
+      "type": "stat",
+      "gridPos": { "h": 8, "w": 4, "x": 8, "y": 8 },
+      "targets": [
+        { "expr": "chaos_resilience_score" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "steps": [
+              { "value": 0, "color": "red" },
+              { "value": 50, "color": "yellow" },
+              { "value": 80, "color": "green" }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Upstream Health",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 12, "x": 12, "y": 8 },
+      "targets": [
+        { "expr": "dash_upstream_health", "legendFormat": "{{service}}" }
+      ]
+    },
+    {
+      "title": "SLO Burn Rate",
+      "type": "table",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "targets": [
+        { "expr": "slo_burn_rate", "legendFormat": "{{slo_name}}" }
+      ]
+    },
+    {
+      "title": "SLO Budget Remaining",
+      "type": "graph",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "targets": [
+        { "expr": "slo_budget_remaining", "legendFormat": "{{slo_name}}" }
+      ]
+    },
+    {
+      "title": "OTel Spans Ingested",
+      "type": "graph",
+      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 24 },
+      "targets": [
+        { "expr": "rate(slo_otel_spans_ingested_total[1m])" }
+      ]
+    }
+  ]
+}

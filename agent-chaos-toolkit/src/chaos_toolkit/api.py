@@ -14,6 +14,10 @@ from agentops_core.auth import make_get_tenant
 from chaos_toolkit.config import Settings
 from chaos_toolkit.db import AsyncSessionLocal, engine, get_db
 from chaos_toolkit.injector import evaluate_experiment_result, run_batch, run_experiment
+from chaos_toolkit.metrics import (
+    experiments_total, resilience_score, scenarios_total,
+    add_metrics_route,
+)
 from chaos_toolkit.models import Base, Experiment, ExperimentReport, Scenario
 from chaos_toolkit.reporters.ci import generate_github_actions_summary, generate_junit_xml
 from chaos_toolkit.scenarios import seed_builtin_scenarios
@@ -41,6 +45,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Agent Chaos Toolkit", version="0.1.0", lifespan=lifespan)
 
+add_metrics_route(app)
 get_tenant = make_get_tenant(get_db)
 
 
@@ -109,6 +114,8 @@ async def seed_scenarios(
 ) -> list[Scenario]:
     scenarios = await seed_builtin_scenarios(session, tenant.id)
     await session.commit()
+    for s in scenarios:
+        scenarios_total.labels(target_type=s.target_type, tenant_id=str(tenant.id)).inc()
     return scenarios
 
 
@@ -132,6 +139,8 @@ async def create_experiment(
     scenario = result.scalar_one()
     await evaluate_experiment_result(experiment, scenario.expected_behavior)
     await session.commit()
+    status = experiment.status or "unknown"
+    experiments_total.labels(status=status, target_type=scenario.target_type).inc()
     return experiment
 
 
@@ -188,7 +197,9 @@ async def get_resilience_score(
     tenant = Depends(get_tenant),
     session: AsyncSession = Depends(get_db),
 ) -> ResilienceScoreSummary:
-    return await compute_resilience_score(session, tenant.id)
+    score = await compute_resilience_score(session, tenant.id)
+    resilience_score.labels(tenant_id=str(tenant.id)).set(score.overall_score)
+    return score
 
 
 # ─── Reports ──────────────────────────────────────────────────────────────────

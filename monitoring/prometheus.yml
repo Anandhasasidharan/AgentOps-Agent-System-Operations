@@ -1,0 +1,20 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: agentops-dashboard
+    static_configs:
+      - targets: ["dashboard:8003"]
+
+  - job_name: agentops-circuit-breaker
+    static_configs:
+      - targets: ["circuit-breaker:8001"]
+
+  - job_name: agentops-chaos-toolkit
+    static_configs:
+      - targets: ["chaos-toolkit:8002"]
+
+  - job_name: agentops-slo-platform
+    static_configs:
+      - targets: ["agent-slo-platform:8000"]

@@ -1,11 +1,16 @@
 from __future__ import annotations
 
 import os
+import time
 from contextlib import asynccontextmanager
 
 import httpx
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
+
+from dashboard.metrics import (
+    upstream_health, health_check_duration_seconds, add_metrics_route,
+)
 
 CB_URL = os.getenv("CB_URL", "http://localhost:8001")
 CHAOS_URL = os.getenv("CHAOS_URL", "http://localhost:8002")
@@ -24,24 +29,33 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="AgentOps Dashboard", version="0.1.0", lifespan=lifespan)
 
+add_metrics_route(app)
+
 
 @app.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-async def _check(url: str) -> dict:
+async def _check(url: str, name: str) -> dict:
+    t0 = time.time()
     try:
         r = await _client.get(f"{url}/health")
         r.raise_for_status()
+        upstream_health.labels(service=name).set(1)
+        health_check_duration_seconds.labels(service=name).observe(time.time() - t0)
         return {"status": "ok", "data": r.json()}
     except Exception as e:
+        upstream_health.labels(service=name).set(0)
+        health_check_duration_seconds.labels(service=name).observe(time.time() - t0)
         return {"status": "error", "error": str(e)}
 
 
 @app.get("/", response_class=HTMLResponse)
 async def index() -> str:
-    cb, chaos, slo = await _check(CB_URL), await _check(CHAOS_URL), await _check(SLO_URL)
+    cb = await _check(CB_URL, "circuit-breaker")
+    chaos = await _check(CHAOS_URL, "chaos-toolkit")
+    slo = await _check(SLO_URL, "slo-platform")
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="utf-8"><title>AgentOps Dashboard</title>

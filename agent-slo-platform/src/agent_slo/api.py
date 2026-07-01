@@ -12,6 +12,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from agent_slo.alerts import evaluate_alerts, resolve_alerts
+from agent_slo.metrics import (
+    sli_requests_total, slo_current_value, slo_target, slo_burn_rate,
+    slo_budget_remaining, slo_breaching, slo_alerts_total,
+    otel_spans_ingested_total, add_metrics_route,
+)
 from agentops_core.auth import make_get_tenant
 
 from agent_slo.compliance import generate_owasp_report
@@ -57,6 +62,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Agent SLO Platform", version="0.1.0", lifespan=lifespan)
 
+add_metrics_route(app)
 get_tenant = make_get_tenant(get_db)
 
 
@@ -127,6 +133,7 @@ async def create_sli(
     session.add(sli)
     await session.commit()
     await session.refresh(sli)
+    sli_requests_total.labels(sli_name=sli.name, metric_type=sli.metric_type).inc()
     return sli
 
 
@@ -200,9 +207,18 @@ async def status(
             if s["burn_rate"] >= t.get("threshold", 1.0):
                 severity = t.get("severity")
 
+        slo_name = s["slo_name"]
+        slo_current_value.labels(slo_name=slo_name).set(s["current_value"])
+        slo_target.labels(slo_name=slo_name).set(s["target"])
+        slo_burn_rate.labels(slo_name=slo_name).set(s["burn_rate"])
+        slo_budget_remaining.labels(slo_name=slo_name).set(s["budget_remaining"])
+        slo_breaching.labels(slo_name=slo_name).set(1 if s["is_breaching"] else 0)
+        if severity:
+            slo_alerts_total.labels(severity=severity, slo_name=slo_name).inc()
+
         entries.append(StatusEntry(
             slo_id=s["slo_id"],
-            slo_name=s["slo_name"],
+            slo_name=slo_name,
             sli_name=s["sli_name"],
             window=s["window"],
             target=s["target"],
@@ -274,4 +290,5 @@ async def receive_otlp(
     payload = await request.json()
     counts = await ingest_traces(session, payload, tenant.id)
     await session.commit()
+    otel_spans_ingested_total.inc(counts.get("spans_ingested", 1))
     return counts

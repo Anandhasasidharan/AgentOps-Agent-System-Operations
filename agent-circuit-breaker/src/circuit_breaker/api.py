@@ -4,22 +4,29 @@ from __future__ import annotations
 
 import uuid
 from contextlib import asynccontextmanager
-from typing import Any
 from time import time
+from typing import Any
 
-from fastapi import Depends, FastAPI, Query
+from agentops_core.auth import make_get_tenant
+from fastapi import Depends, FastAPI, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from agentops_core.auth import make_get_tenant
 from circuit_breaker.config import Settings
-from circuit_breaker.db import AsyncSessionLocal, engine, get_db
-from circuit_breaker.incident_engine import create_incident, get_active_incidents, resolve_incident
+from circuit_breaker.db import engine, get_db
+from circuit_breaker.incident_engine import get_active_incidents, resolve_incident
 from circuit_breaker.kill_switch import (
     activate_kill_switch,
     check_kill_switch,
     get_kill_switch_status,
     release_kill_switch,
+)
+from circuit_breaker.metrics import (
+    add_metrics_route,
+    kill_switches_active,
+    policies_total,
+    tool_calls_total,
+    tool_duration_seconds,
 )
 from circuit_breaker.models import (
     AgentState,
@@ -27,10 +34,8 @@ from circuit_breaker.models import (
     Incident,
     KillSwitch,
     Policy,
-    RollbackLog,
     ToolCall,
 )
-from circuit_breaker.policy_engine import evaluate_policies, load_policies
 from circuit_breaker.proxy import intercept_tool_call
 from circuit_breaker.rollback_engine import execute_rollback
 from circuit_breaker.schemas import (
@@ -42,11 +47,6 @@ from circuit_breaker.schemas import (
     PolicyOut,
     ToolCallIn,
     ToolCallOut,
-)
-from circuit_breaker.state_tracker import update_agent_state
-from circuit_breaker.metrics import (
-    tool_calls_total, tool_duration_seconds, policies_total,
-    kill_switches_active, incidents_total, add_metrics_route,
 )
 
 settings = Settings()
@@ -77,7 +77,7 @@ async def health() -> dict[str, str]:
 @app.post("/v1/intercept", response_model=InterceptResponse)
 async def intercept(
     data: ToolCallIn,
-    tenant = Depends(get_tenant),
+    tenant=Depends(get_tenant),
     session: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     t0 = time()
@@ -106,7 +106,7 @@ async def intercept(
 @app.post("/api/v1/policies", response_model=PolicyOut, status_code=201)
 async def create_policy(
     data: PolicyCreate,
-    tenant = Depends(get_tenant),
+    tenant=Depends(get_tenant),
     session: AsyncSession = Depends(get_db),
 ) -> Policy:
     policy = Policy(
@@ -129,7 +129,7 @@ async def create_policy(
 
 @app.get("/api/v1/policies", response_model=list[PolicyOut])
 async def list_policies(
-    tenant = Depends(get_tenant),
+    tenant=Depends(get_tenant),
     session: AsyncSession = Depends(get_db),
 ) -> list[Policy]:
     stmt = select(Policy).where(Policy.tenant_id == tenant.id).order_by(Policy.priority.desc())
@@ -140,7 +140,7 @@ async def list_policies(
 @app.get("/api/v1/policies/{policy_id}", response_model=PolicyOut)
 async def get_policy(
     policy_id: uuid.UUID,
-    tenant = Depends(get_tenant),
+    tenant=Depends(get_tenant),
     session: AsyncSession = Depends(get_db),
 ) -> Policy:
     stmt = select(Policy).where(Policy.id == policy_id, Policy.tenant_id == tenant.id)
@@ -154,7 +154,7 @@ async def get_policy(
 @app.delete("/api/v1/policies/{policy_id}", status_code=204)
 async def delete_policy(
     policy_id: uuid.UUID,
-    tenant = Depends(get_tenant),
+    tenant=Depends(get_tenant),
     session: AsyncSession = Depends(get_db),
 ) -> None:
     stmt = select(Policy).where(Policy.id == policy_id, Policy.tenant_id == tenant.id)
@@ -171,7 +171,7 @@ async def delete_policy(
 
 @app.get("/api/v1/tool-calls", response_model=list[ToolCallOut])
 async def list_tool_calls(
-    tenant = Depends(get_tenant),
+    tenant=Depends(get_tenant),
     agent_id: str | None = Query(None),
     session: AsyncSession = Depends(get_db),
     limit: int = Query(default=50, le=200),
@@ -192,12 +192,10 @@ async def activate_kill(
     agent_id: str,
     reason: str = Query(default="Manual kill switch activation"),
     ttl_seconds: int = Query(default=3600, alias="ttl"),
-    tenant = Depends(get_tenant),
+    tenant=Depends(get_tenant),
     session: AsyncSession = Depends(get_db),
 ) -> KillSwitch:
-    ks = await activate_kill_switch(
-        session, tenant.id, agent_id, reason, "manual", ttl_seconds
-    )
+    ks = await activate_kill_switch(session, tenant.id, agent_id, reason, "manual", ttl_seconds)
     await session.commit()
     await session.refresh(ks)
     kill_switches_active.labels(agent_id=agent_id, tenant_id=str(tenant.id)).inc()
@@ -207,7 +205,7 @@ async def activate_kill(
 @app.post("/api/v1/kill-switch/{agent_id}/release", response_model=KillSwitchOut)
 async def release_kill(
     agent_id: str,
-    tenant = Depends(get_tenant),
+    tenant=Depends(get_tenant),
     session: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     ks = await release_kill_switch(session, tenant.id, agent_id)
@@ -222,7 +220,7 @@ async def release_kill(
 @app.get("/api/v1/kill-switch/{agent_id}")
 async def get_kill_status(
     agent_id: str,
-    tenant = Depends(get_tenant),
+    tenant=Depends(get_tenant),
     session: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     return await get_kill_switch_status(session, tenant.id, agent_id)
@@ -233,7 +231,7 @@ async def get_kill_status(
 
 @app.get("/api/v1/incidents", response_model=list[IncidentOut])
 async def list_incidents(
-    tenant = Depends(get_tenant),
+    tenant=Depends(get_tenant),
     agent_id: str | None = Query(None),
     session: AsyncSession = Depends(get_db),
 ) -> list[Incident]:
@@ -243,7 +241,7 @@ async def list_incidents(
 @app.post("/api/v1/incidents/{incident_id}/resolve")
 async def resolve_incident_endpoint(
     incident_id: uuid.UUID,
-    tenant = Depends(get_tenant),
+    tenant=Depends(get_tenant),
     session: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     incident = await resolve_incident(session, incident_id)
@@ -256,7 +254,7 @@ async def resolve_incident_endpoint(
 @app.post("/api/v1/incidents/{incident_id}/rollback")
 async def rollback_incident(
     incident_id: uuid.UUID,
-    tenant = Depends(get_tenant),
+    tenant=Depends(get_tenant),
     session: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     rollbacks = await execute_rollback(session, incident_id)
@@ -274,7 +272,7 @@ async def rollback_incident(
 @app.get("/api/v1/agents/{agent_id}/status", response_model=AgentStatusResponse)
 async def agent_status(
     agent_id: str,
-    tenant = Depends(get_tenant),
+    tenant=Depends(get_tenant),
     session: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     is_killed = await check_kill_switch(session, tenant.id, agent_id)
@@ -298,7 +296,12 @@ async def agent_status(
     )
     calls_result = await session.execute(calls_stmt)
     recent_calls = [
-        {"tool_name": c.tool_name, "decision": c.decision, "blocked": c.blocked, "timestamp": str(c.timestamp)}
+        {
+            "tool_name": c.tool_name,
+            "decision": c.decision,
+            "blocked": c.blocked,
+            "timestamp": str(c.timestamp),
+        }
         for c in calls_result.scalars().all()
     ]
 

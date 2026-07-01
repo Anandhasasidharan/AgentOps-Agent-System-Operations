@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime, timedelta, timezone
-from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -55,7 +54,9 @@ async def update_agent_state(
     state.unique_tools = state.unique_tools or []
     state.total_tokens = (state.total_tokens or 0) + (tool_call.token_count or 0)
     state.total_cost = (state.total_cost or 0) + (float(tool_call.cost) if tool_call.cost else 0.0)
-    state.anomaly_count = (state.anomaly_count or 0) + (1 if tool_call.anomaly_score and tool_call.anomaly_score > 0.5 else 0)
+    state.anomaly_count = (state.anomaly_count or 0) + (
+        1 if tool_call.anomaly_score and tool_call.anomaly_score > 0.5 else 0
+    )
     state.failure_count = (state.failure_count or 0) + (1 if tool_call.blocked else 0)
 
     if tool_call.tool_name not in state.unique_tools:
@@ -68,9 +69,9 @@ async def update_agent_state(
     if tool_call.duration_ms is not None:
         old_avg = state.avg_duration_ms
         if old_avg is not None:
-            state.avg_duration_ms = old_avg + (
-                tool_call.duration_ms - old_avg
-            ) / min(state.call_count, 100)
+            state.avg_duration_ms = old_avg + (tool_call.duration_ms - old_avg) / min(
+                state.call_count, 100
+            )
         else:
             state.avg_duration_ms = tool_call.duration_ms
 

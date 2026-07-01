@@ -65,11 +65,13 @@ class SLOCreate(BaseModel):
     target: float = Field(..., gt=0, le=1)
     comparator: str = Field(..., pattern="^(gt|lt|eq)$")
     window: str = Field(..., max_length=16)
-    burn_rate_alert_thresholds: list[dict[str, Any]] = Field(default_factory=lambda: [
-                {"threshold": 0.02, "severity": "info"},
-                {"threshold": 0.05, "severity": "warning"},
-                {"threshold": 0.10, "severity": "critical"},
-            ])
+    burn_rate_alert_thresholds: list[dict[str, Any]] = Field(
+        default_factory=lambda: [
+            {"threshold": 0.02, "severity": "info"},
+            {"threshold": 0.05, "severity": "warning"},
+            {"threshold": 0.10, "severity": "critical"},
+        ]
+    )
     risk_budget: dict[str, Any] | None = None
     labels: dict[str, str] = Field(default_factory=dict)
 

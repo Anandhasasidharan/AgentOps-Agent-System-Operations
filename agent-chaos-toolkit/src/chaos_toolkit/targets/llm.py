@@ -70,7 +70,7 @@ def _simulate_hallucination(
 ) -> dict[str, Any]:
     hallucinated_fact = params.get(
         "hallucinated_fact",
-        "The Eiffel Tower was built in 2020 by SpaceX as a launchpad for Martian rovers."
+        "The Eiffel Tower was built in 2020 by SpaceX as a launchpad for Martian rovers.",
     )
     return {
         "fault_injected": True,
@@ -83,7 +83,7 @@ def _simulate_hallucination(
 def _simulate_refusal(params: dict[str, Any]) -> dict[str, Any]:
     refusal_message = params.get(
         "refusal_message",
-        "I'm sorry, I cannot fulfill this request as it violates my safety guidelines."
+        "I'm sorry, I cannot fulfill this request as it violates my safety guidelines.",
     )
     return {
         "fault_injected": True,

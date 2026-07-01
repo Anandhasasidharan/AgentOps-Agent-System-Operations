@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import asyncio
 from pathlib import Path
-from typing import Optional
 
 import httpx
 import typer
@@ -22,7 +20,9 @@ def _headers(api_key: str) -> dict[str, str]:
 
 @app.command()
 def apply(
-    file: Path = typer.Argument(..., help="Path to YAML file containing SLO/RiskBudget definitions"),
+    file: Path = typer.Argument(
+        ..., help="Path to YAML file containing SLO/RiskBudget definitions"
+    ),
     api_key: str = typer.Option("dev-api-key", "--api-key", "-k"),
     base_url: str = typer.Option(API_BASE, "--base-url", "-u"),
 ) -> None:
@@ -40,7 +40,7 @@ def apply(
 
         # Ensure SLI exists or create placeholder
         sli_name = doc.spec.sli if doc.kind == "SLO" else "risk_budget"
-        sli_resp = client.get(f"/api/v1/slis")
+        sli_resp = client.get("/api/v1/slis")
         slis = sli_resp.json()
         sli_id = next((s["id"] for s in slis if s["name"] == sli_name), None)
         if not sli_id:

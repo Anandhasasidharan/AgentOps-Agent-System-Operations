@@ -15,8 +15,10 @@ class ScenarioCreate(BaseModel):
     target_type: str = Field(..., pattern=r"^(llm|tool|rag|mcp)$")
     failure_mode: str = Field(..., max_length=32)
     config: dict[str, Any] = Field(default_factory=dict)
-    expected_behavior: str = Field(default="graceful_degradation",
-                                   pattern=r"^(graceful_degradation|fail_fast|retry_success|fallback_used|error_handled)$")
+    expected_behavior: str = Field(
+        default="graceful_degradation",
+        pattern=r"^(graceful_degradation|fail_fast|retry_success|fallback_used|error_handled)$",
+    )
     agent_should_survive: bool = True
     enabled: bool = True
 

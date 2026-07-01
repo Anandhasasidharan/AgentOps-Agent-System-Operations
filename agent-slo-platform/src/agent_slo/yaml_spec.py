@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-import uuid
-from typing import Any
-
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -27,11 +24,14 @@ class SLOSpec(BaseModel):
     target: float = Field(..., gt=0)
     comparator: str = Field(..., pattern="^(gt|lt|eq)$")
     window: str = Field(..., max_length=16)
-    burn_rate_alerts: list[BurnRateAlertSpec] = Field(default_factory=lambda: [
-        BurnRateAlertSpec(threshold=0.02, severity="info"),
-        BurnRateAlertSpec(threshold=0.05, severity="warning"),
-        BurnRateAlertSpec(threshold=0.10, severity="critical"),
-    ], alias="burnRateAlerts")
+    burn_rate_alerts: list[BurnRateAlertSpec] = Field(
+        default_factory=lambda: [
+            BurnRateAlertSpec(threshold=0.02, severity="info"),
+            BurnRateAlertSpec(threshold=0.05, severity="warning"),
+            BurnRateAlertSpec(threshold=0.10, severity="critical"),
+        ],
+        alias="burnRateAlerts",
+    )
     labels: dict[str, str] = Field(default_factory=dict)
 
 

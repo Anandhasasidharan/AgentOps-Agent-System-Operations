@@ -1,14 +1,16 @@
-from prometheus_client import Counter, Histogram, Gauge, generate_latest, CONTENT_TYPE_LATEST
-from starlette.responses import Response
 from fastapi import FastAPI
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, Histogram, generate_latest
+from starlette.responses import Response
 
 experiments_total = Counter(
-    "chaos_experiments_total", "Experiments completed",
+    "chaos_experiments_total",
+    "Experiments completed",
     ["status", "target_type"],
 )
 
 experiment_duration_seconds = Histogram(
-    "chaos_experiment_duration_seconds", "Experiment duration",
+    "chaos_experiment_duration_seconds",
+    "Experiment duration",
     ["target_type", "failure_mode"],
     buckets=(0.1, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0),
 )

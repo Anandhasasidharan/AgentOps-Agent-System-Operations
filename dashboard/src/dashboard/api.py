@@ -9,7 +9,9 @@ from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 
 from dashboard.metrics import (
-    upstream_health, health_check_duration_seconds, add_metrics_route,
+    add_metrics_route,
+    health_check_duration_seconds,
+    upstream_health,
 )
 
 CB_URL = os.getenv("CB_URL", "http://localhost:8001")
@@ -81,5 +83,14 @@ def _card(name: str, url: str, result: dict) -> str:
     ok = result.get("status") == "ok"
     cls = "ok" if ok else "err"
     data = result.get("data", {}) if ok else {}
-    items = "".join(f"<li><b>{k}:</b> {v}</li>" for k, v in data.items()) if data else f"<li>{result.get('error', 'unknown')}</li>"
-    return f'<div class="card {cls}"><h2>{name}</h2><p class="status">{result["status"]}</p><ul>{items}</ul><p><a href="{url}/docs">API docs</a></p></div>'
+    items = (
+        "".join(f"<li><b>{k}:</b> {v}</li>" for k, v in data.items())
+        if data
+        else f"<li>{result.get('error', 'unknown')}</li>"
+    )
+    return (
+        f'<div class="card {cls}"><h2>{name}</h2>'
+        f'<p class="status">{result["status"]}</p>'
+        f"<ul>{items}</ul>"
+        f'<p><a href="{url}/docs">API docs</a></p></div>'
+    )

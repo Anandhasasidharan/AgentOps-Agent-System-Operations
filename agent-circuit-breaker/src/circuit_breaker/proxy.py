@@ -10,14 +10,14 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
+from agentops_core.telemetry import emit_tool_call_span
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from agentops_core.telemetry import emit_tool_call_span
 from circuit_breaker.anomaly_engine import compute_anomaly_score
 from circuit_breaker.config import Settings
 from circuit_breaker.incident_engine import create_incident
 from circuit_breaker.kill_switch import check_kill_switch
-from circuit_breaker.models import AgentState, ToolCall
+from circuit_breaker.models import ToolCall
 from circuit_breaker.policy_engine import PolicyDecision, evaluate_policies, load_policies
 from circuit_breaker.risk_engine import score_tool_call
 from circuit_breaker.state_tracker import update_agent_state
@@ -63,8 +63,12 @@ async def intercept_tool_call(
         await session.flush()
 
         await create_incident(
-            session, tenant_id, agent_id, session_id,
-            severity="critical", category="kill_switch",
+            session,
+            tenant_id,
+            agent_id,
+            session_id,
+            severity="critical",
+            category="kill_switch",
             message=f"Tool call blocked: agent {agent_id} is killed",
             details={"tool_name": tool_name, "kill_switch_active": True},
             action_taken="kill",
@@ -101,7 +105,10 @@ async def intercept_tool_call(
         tool_call.blocked = True
         severity = "critical" if decision.action == "kill" else "warning"
         incident = await create_incident(
-            session, tenant_id, agent_id, session_id,
+            session,
+            tenant_id,
+            agent_id,
+            session_id,
             severity=severity,
             category="policy_violation",
             message=decision.reason or f"Blocked by policy: {decision.policy_name}",
@@ -129,16 +136,18 @@ async def intercept_tool_call(
     result["risk_score"] = risk_score
     result["anomaly_score"] = anomaly_score
 
-    asyncio.ensure_future(emit_tool_call_span(
-        endpoint=settings.otel_exporter_endpoint,
-        tenant_slug=tenant_slug or "",
-        agent_id=agent_id,
-        tool_name=tool_name,
-        blocked=tool_call.blocked,
-        duration_ms=duration_ms,
-        token_count=token_count,
-        risk_score=risk_score,
-    ))
+    asyncio.ensure_future(
+        emit_tool_call_span(
+            endpoint=settings.otel_exporter_endpoint,
+            tenant_slug=tenant_slug or "",
+            agent_id=agent_id,
+            tool_name=tool_name,
+            blocked=tool_call.blocked,
+            duration_ms=duration_ms,
+            token_count=token_count,
+            risk_score=risk_score,
+        )
+    )
     return result
 
 
@@ -147,9 +156,11 @@ async def _get_windowed_stats(
     tenant_id: uuid.UUID,
     agent_id: str,
 ) -> dict[str, Any]:
-    from sqlalchemy import select
-    from circuit_breaker.models import ToolCall
     from datetime import timedelta
+
+    from sqlalchemy import select
+
+    from circuit_breaker.models import ToolCall
 
     cutoff = datetime.now(timezone.utc) - timedelta(minutes=5)
     stmt = (

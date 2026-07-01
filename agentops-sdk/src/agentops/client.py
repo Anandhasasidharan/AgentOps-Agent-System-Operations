@@ -108,16 +108,12 @@ class AgentOpsSDK:
         return r.json()
 
     async def release_kill_switch(self, agent_id: str) -> dict[str, Any]:
-        r = await self._client.post(
-            f"{self._cb_url}/api/v1/kill-switch/{agent_id}/release"
-        )
+        r = await self._client.post(f"{self._cb_url}/api/v1/kill-switch/{agent_id}/release")
         r.raise_for_status()
         return r.json()
 
     async def get_agent_status(self, agent_id: str) -> dict[str, Any]:
-        r = await self._client.get(
-            f"{self._cb_url}/api/v1/agents/{agent_id}/status"
-        )
+        r = await self._client.get(f"{self._cb_url}/api/v1/agents/{agent_id}/status")
         r.raise_for_status()
         return r.json()
 
@@ -128,13 +124,9 @@ class AgentOpsSDK:
         r.raise_for_status()
         return r.json()
 
-    async def list_scenarios(
-        self, target_type: str | None = None
-    ) -> list[dict[str, Any]]:
+    async def list_scenarios(self, target_type: str | None = None) -> list[dict[str, Any]]:
         params = {"target_type": target_type} if target_type else None
-        r = await self._client.get(
-            f"{self._chaos_url}/api/v1/scenarios", params=params
-        )
+        r = await self._client.get(f"{self._chaos_url}/api/v1/scenarios", params=params)
         r.raise_for_status()
         return r.json()
 
@@ -261,13 +253,25 @@ class AgentOpsSDK:
                                     "startTimeUnixNano": "0",
                                     "endTimeUnixNano": str(int(duration_ms * 1_000_000)),
                                     "attributes": [
-                                        {"key": "gen_ai.eval.success", "value": {"intValue": "1" if success else "0"}},
+                                        {
+                                            "key": "gen_ai.eval.success",
+                                            "value": {"intValue": "1" if success else "0"},
+                                        },
                                         {"key": "gen_ai.eval.total", "value": {"intValue": "1"}},
                                         {"key": "gen_ai.tool.success", "value": {"intValue": "1"}},
                                         {"key": "gen_ai.tool.calls", "value": {"intValue": "1"}},
-                                        {"key": "gen_ai.usage.input_tokens", "value": {"intValue": str(input_tokens)}},
-                                        {"key": "gen_ai.usage.output_tokens", "value": {"intValue": str(output_tokens)}},
-                                        {"key": "gen_ai.response.duration", "value": {"intValue": str(int(duration_ms))}},
+                                        {
+                                            "key": "gen_ai.usage.input_tokens",
+                                            "value": {"intValue": str(input_tokens)},
+                                        },
+                                        {
+                                            "key": "gen_ai.usage.output_tokens",
+                                            "value": {"intValue": str(output_tokens)},
+                                        },
+                                        {
+                                            "key": "gen_ai.response.duration",
+                                            "value": {"intValue": str(int(duration_ms))},
+                                        },
                                     ],
                                     "status": {"code": 1 if success else 2},
                                 }
@@ -293,9 +297,7 @@ class AgentOpsSDK:
         sli = await self.create_sli(name="task-success-rate", metric_type="ratio")
         results["sli"] = sli
 
-        slo = await self.create_slo(
-            sli_id=sli["id"], name="95% success rate", target=0.95
-        )
+        slo = await self.create_slo(sli_id=sli["id"], name="95% success rate", target=0.95)
         results["slo"] = slo
 
         policy = await self.create_policy(

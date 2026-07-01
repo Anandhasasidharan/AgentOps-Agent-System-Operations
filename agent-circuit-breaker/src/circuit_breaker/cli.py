@@ -61,7 +61,7 @@ def status(
     typer.echo(f"{status_icon} Agent: {data['agent_id']}")
     typer.echo(f"  Killed: {data['is_killed']}")
     typer.echo(f"  Active incidents: {len(data['active_incidents'])}")
-    typer.echo(f"  Recent decisions:")
+    typer.echo("  Recent decisions:")
     for d in data["recent_decisions"][:5]:
         icon = "❌" if d["blocked"] else "✅"
         typer.echo(f"    {icon} {d['tool_name']} -> {d['decision']}")
@@ -77,7 +77,9 @@ def policies(
     resp.raise_for_status()
     for p in resp.json():
         icon = "✅" if p["enabled"] else "⏸️"
-        typer.echo(f"{icon} {p['name']} ({p['policy_type']}) -> {p['action']} [priority {p['priority']}]")
+        typer.echo(
+            f"{icon} {p['name']} ({p['policy_type']}) -> {p['action']} [priority {p['priority']}]"
+        )
 
 
 @app.command()

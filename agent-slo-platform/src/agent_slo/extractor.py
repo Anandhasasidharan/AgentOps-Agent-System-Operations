@@ -8,7 +8,6 @@ from typing import Any
 
 from agent_slo.models import OtelSpan
 
-
 KNOWN_ATTRIBUTES = {
     "gen_ai.system",
     "gen_ai.request.model",
@@ -41,7 +40,9 @@ def parse_otlp_spans(payload: dict[str, Any], tenant_id: uuid.UUID) -> list[Otel
                     OtelSpan(
                         trace_id=bytes.fromhex(span["traceId"]) if "traceId" in span else b"",
                         span_id=bytes.fromhex(span["spanId"]) if "spanId" in span else b"",
-                        parent_span_id=bytes.fromhex(span["parentSpanId"]) if span.get("parentSpanId") else None,
+                        parent_span_id=bytes.fromhex(span["parentSpanId"])
+                        if span.get("parentSpanId")
+                        else None,
                         tenant_id=tenant_id,
                         agent_id=agent_id,
                         name=span.get("name", "unnamed"),
@@ -63,7 +64,7 @@ def _flatten_attrs(attrs: list[dict[str, Any]]) -> dict[str, Any]:
         value = attr.get("value", {})
         if not key:
             continue
-        # OTLP AnyValue: one of stringValue, intValue, doubleValue, boolValue, arrayValue, kvlistValue
+        # OTLP AnyValue: stringValue, intValue, doubleValue, boolValue, arrayValue, kvlistValue
         if "stringValue" in value:
             result[key] = value["stringValue"]
         elif "intValue" in value:

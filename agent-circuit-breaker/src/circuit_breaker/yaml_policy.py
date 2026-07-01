@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class Condition(BaseModel):
@@ -28,8 +28,11 @@ class PolicyAction(BaseModel):
 
 
 class PolicySpec(BaseModel):
-    policy_type: str = Field(..., alias="type",
-                             pattern=r"^(tool_allowlist|tool_blocklist|rate_limit|token_budget|risk_threshold|anomaly_threshold|time_window|reasoning_loop)$")
+    policy_type: str = Field(
+        ...,
+        alias="type",
+        pattern=r"^(tool_allowlist|tool_blocklist|rate_limit|token_budget|risk_threshold|anomaly_threshold|time_window|reasoning_loop)$",
+    )
     priority: int = 0
     enabled: bool = True
     conditions: dict[str, Any] = Field(default_factory=dict)

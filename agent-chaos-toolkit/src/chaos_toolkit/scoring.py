@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import uuid
 from collections import defaultdict
-from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -27,9 +26,13 @@ async def compute_resilience_score(
 
     if not experiments:
         return ResilienceScoreSummary(
-            total_experiments=0, passed=0, failed=0,
-            pass_rate=0.0, avg_resilience_score=0.0,
-            worst_performing_target=None, recommendations=[],
+            total_experiments=0,
+            passed=0,
+            failed=0,
+            pass_rate=0.0,
+            avg_resilience_score=0.0,
+            worst_performing_target=None,
+            recommendations=[],
         )
 
     total = len(experiments)
@@ -71,14 +74,20 @@ def _generate_recommendations(
     for target, scores in sorted(by_target.items()):
         avg = sum(scores) / len(scores) if scores else 0.0
         if avg < 0.5:
-            recs.append(f"Critical: {target} target has very low resilience ({avg:.0%}). "
-                        f"Add retry logic, fallback mechanisms, and timeout handling.")
+            recs.append(
+                f"Critical: {target} target has very low resilience ({avg:.0%}). "
+                f"Add retry logic, fallback mechanisms, and timeout handling."
+            )
         elif avg < 0.7:
-            recs.append(f"Warning: {target} target needs improvement ({avg:.0%}). "
-                        f"Consider adding circuit breakers or graceful degradation.")
+            recs.append(
+                f"Warning: {target} target needs improvement ({avg:.0%}). "
+                f"Consider adding circuit breakers or graceful degradation."
+            )
         elif avg < 0.9:
-            recs.append(f"Info: {target} target is adequate ({avg:.0%}). "
-                        f"Review edge cases for further hardening.")
+            recs.append(
+                f"Info: {target} target is adequate ({avg:.0%}). "
+                f"Review edge cases for further hardening."
+            )
     if not recs:
         recs.append("All targets have excellent resilience scores. Continue monitoring.")
     return recs

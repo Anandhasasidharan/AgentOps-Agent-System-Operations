@@ -6,12 +6,10 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from sqlalchemy import select
-
 from agent_slo.models import ServiceLevelObjective
-
 
 OWASP_AGENTIC_CONTROLS: list[dict[str, Any]] = [
     {
@@ -61,13 +59,15 @@ async def generate_owasp_report(
         else:
             status = "not_mitigated"
 
-        controls.append({
-            "risk_id": control["risk_id"],
-            "risk_name": control["risk_name"],
-            "status": status,
-            "evidence": [f"SLO configured for {k}" for k in covered],
-            "gaps": [f"No SLO configured for {k}" for k in gaps],
-        })
+        controls.append(
+            {
+                "risk_id": control["risk_id"],
+                "risk_name": control["risk_name"],
+                "status": status,
+                "evidence": [f"SLO configured for {k}" for k in covered],
+                "gaps": [f"No SLO configured for {k}" for k in gaps],
+            }
+        )
 
     return {
         "generated_at": now_utc(),

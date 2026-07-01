@@ -16,10 +16,10 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import numpy as np
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from circuit_breaker.models import AgentState, ToolCall
+from circuit_breaker.models import ToolCall
 
 
 def now_utc() -> datetime:

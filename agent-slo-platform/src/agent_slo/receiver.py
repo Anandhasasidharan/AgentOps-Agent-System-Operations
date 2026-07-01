@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
 from typing import Any
 
 from sqlalchemy import select
@@ -92,72 +91,84 @@ async def _derive_metrics(
         if "task_success" in metrics_map and "eval_total" in metrics_map:
             total = metrics_map.get("eval_total", 1)
             if total > 0 and "task_success_rate" in slis:
-                metrics.append(Metric(
-                    tenant_id=tenant_id,
-                    agent_id=span.agent_id,
-                    sli_id=slis["task_success_rate"].id,
-                    timestamp=span.end_time,
-                    value=metrics_map["task_success"] / total,
-                    count=int(total),
-                    window_start=window_start,
-                    window_end=window_end,
-                ))
+                metrics.append(
+                    Metric(
+                        tenant_id=tenant_id,
+                        agent_id=span.agent_id,
+                        sli_id=slis["task_success_rate"].id,
+                        timestamp=span.end_time,
+                        value=metrics_map["task_success"] / total,
+                        count=int(total),
+                        window_start=window_start,
+                        window_end=window_end,
+                    )
+                )
 
         # hallucination / eval_total -> hallucination_rate
         if "hallucination" in metrics_map and "eval_total" in metrics_map:
             total = metrics_map.get("eval_total", 1)
             if total > 0 and "hallucination_rate" in slis:
-                metrics.append(Metric(
-                    tenant_id=tenant_id,
-                    agent_id=span.agent_id,
-                    sli_id=slis["hallucination_rate"].id,
-                    timestamp=span.end_time,
-                    value=metrics_map["hallucination"] / total,
-                    count=int(total),
-                    window_start=window_start,
-                    window_end=window_end,
-                ))
+                metrics.append(
+                    Metric(
+                        tenant_id=tenant_id,
+                        agent_id=span.agent_id,
+                        sli_id=slis["hallucination_rate"].id,
+                        timestamp=span.end_time,
+                        value=metrics_map["hallucination"] / total,
+                        count=int(total),
+                        window_start=window_start,
+                        window_end=window_end,
+                    )
+                )
 
         # tool_success / tool_calls -> tool_accuracy
         if "tool_success" in metrics_map and "tool_calls" in metrics_map:
             total = metrics_map.get("tool_calls", 1)
             if total > 0 and "tool_accuracy" in slis:
-                metrics.append(Metric(
-                    tenant_id=tenant_id,
-                    agent_id=span.agent_id,
-                    sli_id=slis["tool_accuracy"].id,
-                    timestamp=span.end_time,
-                    value=metrics_map["tool_success"] / total,
-                    count=int(total),
-                    window_start=window_start,
-                    window_end=window_end,
-                ))
+                metrics.append(
+                    Metric(
+                        tenant_id=tenant_id,
+                        agent_id=span.agent_id,
+                        sli_id=slis["tool_accuracy"].id,
+                        timestamp=span.end_time,
+                        value=metrics_map["tool_success"] / total,
+                        count=int(total),
+                        window_start=window_start,
+                        window_end=window_end,
+                    )
+                )
 
         # latency_ms -> latency_p99 (per-span metric; p99 computed at query time)
         if "latency_ms" in metrics_map and "latency_p99" in slis:
-            metrics.append(Metric(
-                tenant_id=tenant_id,
-                agent_id=span.agent_id,
-                sli_id=slis["latency_p99"].id,
-                timestamp=span.end_time,
-                value=metrics_map["latency_ms"],
-                count=1,
-                window_start=window_start,
-                window_end=window_end,
-            ))
+            metrics.append(
+                Metric(
+                    tenant_id=tenant_id,
+                    agent_id=span.agent_id,
+                    sli_id=slis["latency_p99"].id,
+                    timestamp=span.end_time,
+                    value=metrics_map["latency_ms"],
+                    count=1,
+                    window_start=window_start,
+                    window_end=window_end,
+                )
+            )
 
         # token_usage
-        if ("input_tokens" in metrics_map or "output_tokens" in metrics_map) and "token_usage" in slis:
-            metrics.append(Metric(
-                tenant_id=tenant_id,
-                agent_id=span.agent_id,
-                sli_id=slis["token_usage"].id,
-                timestamp=span.end_time,
-                value=metrics_map.get("input_tokens", 0) + metrics_map.get("output_tokens", 0),
-                count=1,
-                window_start=window_start,
-                window_end=window_end,
-            ))
+        if (
+            "input_tokens" in metrics_map or "output_tokens" in metrics_map
+        ) and "token_usage" in slis:
+            metrics.append(
+                Metric(
+                    tenant_id=tenant_id,
+                    agent_id=span.agent_id,
+                    sli_id=slis["token_usage"].id,
+                    timestamp=span.end_time,
+                    value=metrics_map.get("input_tokens", 0) + metrics_map.get("output_tokens", 0),
+                    count=1,
+                    window_start=window_start,
+                    window_end=window_end,
+                )
+            )
 
     session.add_all(metrics)
     await session.flush()

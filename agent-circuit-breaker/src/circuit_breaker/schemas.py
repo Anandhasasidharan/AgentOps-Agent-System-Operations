@@ -15,7 +15,10 @@ class PolicyCreate(BaseModel):
     description: str | None = Field(default=None, max_length=512)
     enabled: bool = True
     priority: int = 0
-    policy_type: str = Field(..., pattern=r"^(tool_allowlist|tool_blocklist|rate_limit|token_budget|risk_threshold|anomaly_threshold|time_window|reasoning_loop)$")
+    policy_type: str = Field(
+        ...,
+        pattern=r"^(tool_allowlist|tool_blocklist|rate_limit|token_budget|risk_threshold|anomaly_threshold|time_window|reasoning_loop)$",
+    )
     conditions: dict[str, Any] = Field(default_factory=dict)
     action: str = Field(default="block", pattern=r"^(allow|block|reroute|kill|alert)$")
     action_config: dict[str, Any] | None = None

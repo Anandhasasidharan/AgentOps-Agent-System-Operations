@@ -12,7 +12,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from chaos_toolkit.models import Scenario
 
-
 # ─── YAML Scenario Definition ──────────────────────────────────────────────────
 
 
@@ -188,9 +187,7 @@ async def seed_builtin_scenarios(
     session: AsyncSession,
     tenant_id: uuid.UUID,
 ) -> list[Scenario]:
-    existing = await session.execute(
-        select(Scenario).where(Scenario.tenant_id == tenant_id)
-    )
+    existing = await session.execute(select(Scenario).where(Scenario.tenant_id == tenant_id))
     existing_names = {s.name for s in existing.scalars().all()}
 
     created: list[Scenario] = []

@@ -29,12 +29,14 @@ async def check_kill_switch(
     agent_id: str,
 ) -> bool:
     now = now_utc()
-    stmt = select(KillSwitch).where(
-        KillSwitch.tenant_id == tenant_id,
-        KillSwitch.agent_id == agent_id,
-        KillSwitch.active.is_(True),
-    ).filter(
-        (KillSwitch.expires_at.is_(None)) | (KillSwitch.expires_at > now)
+    stmt = (
+        select(KillSwitch)
+        .where(
+            KillSwitch.tenant_id == tenant_id,
+            KillSwitch.agent_id == agent_id,
+            KillSwitch.active.is_(True),
+        )
+        .filter((KillSwitch.expires_at.is_(None)) | (KillSwitch.expires_at > now))
     )
     result = await session.execute(stmt)
     return result.scalar_one_or_none() is not None
@@ -71,10 +73,15 @@ async def activate_kill_switch(
     session.add(ks)
 
     # Also mark agent state as killed
-    state_stmt = select(AgentState).where(
-        AgentState.tenant_id == tenant_id,
-        AgentState.agent_id == agent_id,
-    ).order_by(AgentState.window_start.desc()).limit(1)
+    state_stmt = (
+        select(AgentState)
+        .where(
+            AgentState.tenant_id == tenant_id,
+            AgentState.agent_id == agent_id,
+        )
+        .order_by(AgentState.window_start.desc())
+        .limit(1)
+    )
     state_result = await session.execute(state_stmt)
     state = state_result.scalar_one_or_none()
     if state:
@@ -100,10 +107,15 @@ async def release_kill_switch(
         ks.active = False
         ks.released_at = now_utc()
 
-        state_stmt = select(AgentState).where(
-            AgentState.tenant_id == tenant_id,
-            AgentState.agent_id == agent_id,
-        ).order_by(AgentState.window_start.desc()).limit(1)
+        state_stmt = (
+            select(AgentState)
+            .where(
+                AgentState.tenant_id == tenant_id,
+                AgentState.agent_id == agent_id,
+            )
+            .order_by(AgentState.window_start.desc())
+            .limit(1)
+        )
         state_result = await session.execute(state_stmt)
         state = state_result.scalar_one_or_none()
         if state:

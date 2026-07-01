@@ -6,11 +6,9 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import ForeignKey, Index, JSON, String, UniqueConstraint
-from sqlalchemy import Uuid
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-
 from agentops_core.base import Base, Tenant, now_utc
+from sqlalchemy import JSON, ForeignKey, Index, String, UniqueConstraint, Uuid
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 
 class Agent(Base):
@@ -18,7 +16,9 @@ class Agent(Base):
     __table_args__ = (UniqueConstraint("tenant_id", "environment", "name"),)
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id"), nullable=False, index=True)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("tenants.id"), nullable=False, index=True
+    )
     environment: Mapped[str] = mapped_column(String(32), nullable=False, default="production")
     name: Mapped[str] = mapped_column(String(128), nullable=False)
     framework: Mapped[str | None] = mapped_column(String(64))
@@ -32,8 +32,12 @@ class ServiceLevelIndicator(Base):
     __tablename__ = "slis"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id"), nullable=False, index=True)
-    agent_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("agents.id"), nullable=True, index=True)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("tenants.id"), nullable=False, index=True
+    )
+    agent_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("agents.id"), nullable=True, index=True
+    )
     name: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     metric_type: Mapped[str] = mapped_column(String(32), nullable=False)
     source: Mapped[str] = mapped_column(String(32), nullable=False)
@@ -46,8 +50,12 @@ class ServiceLevelObjective(Base):
     __tablename__ = "slos"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id"), nullable=False, index=True)
-    agent_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("agents.id"), nullable=True, index=True)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("tenants.id"), nullable=False, index=True
+    )
+    agent_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("agents.id"), nullable=True, index=True
+    )
     sli_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("slis.id"), nullable=False)
     name: Mapped[str] = mapped_column(String(128), nullable=False)
     description: Mapped[str | None] = mapped_column(String(512))
@@ -96,7 +104,9 @@ class Alert(Base):
     __tablename__ = "alerts"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id"), nullable=False, index=True)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("tenants.id"), nullable=False, index=True
+    )
     slo_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("slos.id"), nullable=False, index=True)
     severity: Mapped[str] = mapped_column(String(16), nullable=False)
     threshold: Mapped[float] = mapped_column(nullable=False)
@@ -114,8 +124,12 @@ class OtelSpan(Base):
     trace_id: Mapped[bytes] = mapped_column(nullable=False)
     span_id: Mapped[bytes] = mapped_column(nullable=False)
     parent_span_id: Mapped[bytes | None] = mapped_column(nullable=True)
-    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id"), nullable=False, index=True)
-    agent_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("agents.id"), nullable=True, index=True)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("tenants.id"), nullable=False, index=True
+    )
+    agent_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("agents.id"), nullable=True, index=True
+    )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     kind: Mapped[int] = mapped_column(nullable=False)
     start_time: Mapped[datetime] = mapped_column(nullable=False)

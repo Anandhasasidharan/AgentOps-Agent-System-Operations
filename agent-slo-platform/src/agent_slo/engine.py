@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from agent_slo.models import ErrorBudget, Metric, ServiceLevelIndicator, ServiceLevelObjective
@@ -152,23 +152,27 @@ async def evaluate_all_slos(
         budget.remaining = budget.total_budget - budget.consumed
 
         elapsed_seconds = ((anchor or now_utc()) - start).total_seconds()
-        burn_rate = compute_burn_rate(budget.consumed, window_to_seconds(slo.window), elapsed_seconds)
+        burn_rate = compute_burn_rate(
+            budget.consumed, window_to_seconds(slo.window), elapsed_seconds
+        )
 
-        statuses.append({
-            "slo_id": slo.id,
-            "slo_name": slo.name,
-            "sli_name": slo.sli.name,
-            "window": slo.window,
-            "target": slo.target,
-            "current_value": value,
-            "comparator": slo.comparator,
-            "is_breaching": is_breaching,
-            "budget_consumed": budget.consumed,
-            "budget_remaining": budget.remaining,
-            "burn_rate": burn_rate,
-            "sample_count": count,
-            "alert_thresholds": slo.burn_rate_alert_thresholds or [],
-        })
+        statuses.append(
+            {
+                "slo_id": slo.id,
+                "slo_name": slo.name,
+                "sli_name": slo.sli.name,
+                "window": slo.window,
+                "target": slo.target,
+                "current_value": value,
+                "comparator": slo.comparator,
+                "is_breaching": is_breaching,
+                "budget_consumed": budget.consumed,
+                "budget_remaining": budget.remaining,
+                "burn_rate": burn_rate,
+                "sample_count": count,
+                "alert_thresholds": slo.burn_rate_alert_thresholds or [],
+            }
+        )
 
     await session.commit()
     return statuses

@@ -12,10 +12,10 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
+from agentops_core.telemetry import emit_tool_call_span
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from agentops_core.telemetry import emit_tool_call_span
 from chaos_toolkit.config import Settings
 from chaos_toolkit.models import Experiment, FaultLog, Scenario
 from chaos_toolkit.targets.llm import inject_llm_fault
@@ -119,15 +119,17 @@ async def run_experiment(
     experiment.completed_at = now_utc()
     await session.flush()
 
-    asyncio.ensure_future(emit_tool_call_span(
-        endpoint=settings.otel_exporter_endpoint,
-        tenant_slug=tenant_slug or "",
-        agent_id=agent_id,
-        tool_name=f"chaos.{target_type}.{failure_mode}",
-        blocked=False,
-        duration_ms=injection_time,
-        risk_score=experiment.resilience_score,
-    ))
+    asyncio.ensure_future(
+        emit_tool_call_span(
+            endpoint=settings.otel_exporter_endpoint,
+            tenant_slug=tenant_slug or "",
+            agent_id=agent_id,
+            tool_name=f"chaos.{target_type}.{failure_mode}",
+            blocked=False,
+            duration_ms=injection_time,
+            risk_score=experiment.resilience_score,
+        )
+    )
     return experiment
 
 

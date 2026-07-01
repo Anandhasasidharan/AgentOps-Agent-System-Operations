@@ -7,7 +7,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import and_, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from circuit_breaker.models import Policy, ToolCall
@@ -155,7 +155,8 @@ def _build_reason(policy: Policy, tool_call: ToolCall) -> str:
     if policy.policy_type == "token_budget":
         return f"{base}: token budget of {cond.get('max_tokens', '?')} exceeded"
     if policy.policy_type == "risk_threshold":
-        return f"{base}: risk score {tool_call.risk_score:.2f} exceeds threshold {cond.get('max_risk_score', '?')}"
+        limit = cond.get("max_risk_score", "?")
+        return f"{base}: risk score {tool_call.risk_score:.2f} exceeds threshold {limit}"
     if policy.policy_type == "anomaly_threshold":
         return f"{base}: anomaly score {tool_call.anomaly_score:.2f} exceeds threshold"
     if policy.policy_type == "reasoning_loop":

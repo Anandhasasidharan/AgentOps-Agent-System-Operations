@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime, timezone
-from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -57,9 +56,7 @@ async def execute_rollback(
         tool_result = await session.execute(tool_stmt)
         tool_call = tool_result.scalar_one_or_none()
         if tool_call:
-            compensation = await _compensate_tool_call(
-                session, incident, tool_call
-            )
+            compensation = await _compensate_tool_call(session, incident, tool_call)
             if compensation:
                 rollbacks.append(compensation)
 

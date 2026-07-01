@@ -6,10 +6,9 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import Index, JSON, String, Uuid
-from sqlalchemy.orm import Mapped, mapped_column
-
 from agentops_core.base import Base, now_utc
+from sqlalchemy import JSON, Index, String, Uuid
+from sqlalchemy.orm import Mapped, mapped_column
 
 
 class Scenario(Base):

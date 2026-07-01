@@ -4,19 +4,20 @@ from __future__ import annotations
 
 import uuid
 from contextlib import asynccontextmanager
-from typing import Any
 
+from agentops_core.auth import make_get_tenant
 from fastapi import Depends, FastAPI, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from agentops_core.auth import make_get_tenant
 from chaos_toolkit.config import Settings
-from chaos_toolkit.db import AsyncSessionLocal, engine, get_db
+from chaos_toolkit.db import engine, get_db
 from chaos_toolkit.injector import evaluate_experiment_result, run_batch, run_experiment
 from chaos_toolkit.metrics import (
-    experiments_total, resilience_score, scenarios_total,
     add_metrics_route,
+    experiments_total,
+    resilience_score,
+    scenarios_total,
 )
 from chaos_toolkit.models import Base, Experiment, ExperimentReport, Scenario
 from chaos_toolkit.reporters.ci import generate_github_actions_summary, generate_junit_xml
@@ -30,7 +31,8 @@ from chaos_toolkit.schemas import (
     ScenarioCreate,
     ScenarioOut,
 )
-from chaos_toolkit.scoring import compute_resilience_score, create_report
+from chaos_toolkit.scoring import compute_resilience_score
+from chaos_toolkit.scoring import create_report as _create_report
 
 settings = Settings()
 
@@ -60,7 +62,7 @@ async def health() -> dict[str, str]:
 @app.post("/api/v1/scenarios", response_model=ScenarioOut, status_code=201)
 async def create_scenario(
     data: ScenarioCreate,
-    tenant = Depends(get_tenant),
+    tenant=Depends(get_tenant),
     session: AsyncSession = Depends(get_db),
 ) -> Scenario:
     scenario = Scenario(
@@ -82,7 +84,7 @@ async def create_scenario(
 
 @app.get("/api/v1/scenarios", response_model=list[ScenarioOut])
 async def list_scenarios(
-    tenant = Depends(get_tenant),
+    tenant=Depends(get_tenant),
     target_type: str | None = Query(None),
     session: AsyncSession = Depends(get_db),
 ) -> list[Scenario]:
@@ -96,7 +98,7 @@ async def list_scenarios(
 @app.get("/api/v1/scenarios/{scenario_id}", response_model=ScenarioOut)
 async def get_scenario(
     scenario_id: uuid.UUID,
-    tenant = Depends(get_tenant),
+    tenant=Depends(get_tenant),
     session: AsyncSession = Depends(get_db),
 ) -> Scenario:
     stmt = select(Scenario).where(Scenario.id == scenario_id, Scenario.tenant_id == tenant.id)
@@ -109,7 +111,7 @@ async def get_scenario(
 
 @app.post("/api/v1/scenarios/seed", response_model=list[ScenarioOut])
 async def seed_scenarios(
-    tenant = Depends(get_tenant),
+    tenant=Depends(get_tenant),
     session: AsyncSession = Depends(get_db),
 ) -> list[Scenario]:
     scenarios = await seed_builtin_scenarios(session, tenant.id)
@@ -125,12 +127,17 @@ async def seed_scenarios(
 @app.post("/api/v1/experiments", response_model=ExperimentOut, status_code=201)
 async def create_experiment(
     data: ExperimentRunRequest,
-    tenant = Depends(get_tenant),
+    tenant=Depends(get_tenant),
     session: AsyncSession = Depends(get_db),
 ) -> Experiment:
     experiment = await run_experiment(
-        session, tenant.id, data.scenario_id, data.agent_id,
-        data.target_override, data.failure_mode_override, data.config_override,
+        session,
+        tenant.id,
+        data.scenario_id,
+        data.agent_id,
+        data.target_override,
+        data.failure_mode_override,
+        data.config_override,
         tenant_slug=tenant.slug,
     )
     # Get scenario to evaluate result
@@ -147,11 +154,13 @@ async def create_experiment(
 @app.post("/api/v1/experiments/batch", response_model=list[ExperimentOut])
 async def batch_experiments(
     data: ExperimentBatchRequest,
-    tenant = Depends(get_tenant),
+    tenant=Depends(get_tenant),
     session: AsyncSession = Depends(get_db),
 ) -> list[Experiment]:
     experiments = await run_batch(
-        session, tenant.id, data.agent_id,
+        session,
+        tenant.id,
+        data.agent_id,
         data.scenarios if data.scenarios else None,
         data.run_all_enabled,
         tenant_slug=tenant.slug,
@@ -162,7 +171,7 @@ async def batch_experiments(
 
 @app.get("/api/v1/experiments", response_model=list[ExperimentOut])
 async def list_experiments(
-    tenant = Depends(get_tenant),
+    tenant=Depends(get_tenant),
     agent_id: str | None = Query(None),
     session: AsyncSession = Depends(get_db),
     limit: int = Query(default=50, le=200),
@@ -178,10 +187,12 @@ async def list_experiments(
 @app.get("/api/v1/experiments/{experiment_id}", response_model=ExperimentOut)
 async def get_experiment(
     experiment_id: uuid.UUID,
-    tenant = Depends(get_tenant),
+    tenant=Depends(get_tenant),
     session: AsyncSession = Depends(get_db),
 ) -> Experiment:
-    stmt = select(Experiment).where(Experiment.id == experiment_id, Experiment.tenant_id == tenant.id)
+    stmt = select(Experiment).where(
+        Experiment.id == experiment_id, Experiment.tenant_id == tenant.id
+    )
     result = await session.execute(stmt)
     experiment = result.scalar_one_or_none()
     if not experiment:
@@ -194,7 +205,7 @@ async def get_experiment(
 
 @app.get("/api/v1/resilience-score", response_model=ResilienceScoreSummary)
 async def get_resilience_score(
-    tenant = Depends(get_tenant),
+    tenant=Depends(get_tenant),
     session: AsyncSession = Depends(get_db),
 ) -> ResilienceScoreSummary:
     score = await compute_resilience_score(session, tenant.id)
@@ -211,12 +222,16 @@ async def create_report(
     description: str | None = Query(None),
     ci_run_id: str | None = Query(None),
     ci_provider: str | None = Query(None),
-    tenant = Depends(get_tenant),
+    tenant=Depends(get_tenant),
     session: AsyncSession = Depends(get_db),
 ) -> ExperimentReport:
-    report = await create_report(
-        session, tenant.id, name, description,
-        ci_run_id=ci_run_id, ci_provider=ci_provider,
+    report = await _create_report(
+        session,
+        tenant.id,
+        name,
+        description,
+        ci_run_id=ci_run_id,
+        ci_provider=ci_provider,
     )
     await session.commit()
     await session.refresh(report)
@@ -225,12 +240,14 @@ async def create_report(
 
 @app.get("/api/v1/reports", response_model=list[ExperimentReportOut])
 async def list_reports(
-    tenant = Depends(get_tenant),
+    tenant=Depends(get_tenant),
     session: AsyncSession = Depends(get_db),
 ) -> list[ExperimentReport]:
-    stmt = select(ExperimentReport).where(
-        ExperimentReport.tenant_id == tenant.id
-    ).order_by(ExperimentReport.created_at.desc())
+    stmt = (
+        select(ExperimentReport)
+        .where(ExperimentReport.tenant_id == tenant.id)
+        .order_by(ExperimentReport.created_at.desc())
+    )
     result = await session.execute(stmt)
     return list(result.scalars().all())
 
@@ -238,7 +255,7 @@ async def list_reports(
 @app.get("/api/v1/reports/{report_id}/junit")
 async def get_junit_report(
     report_id: uuid.UUID,
-    tenant = Depends(get_tenant),
+    tenant=Depends(get_tenant),
     session: AsyncSession = Depends(get_db),
 ) -> str:
     stmt = select(ExperimentReport).where(
@@ -258,7 +275,7 @@ async def get_junit_report(
 @app.get("/api/v1/reports/{report_id}/github-summary")
 async def get_github_summary(
     report_id: uuid.UUID,
-    tenant = Depends(get_tenant),
+    tenant=Depends(get_tenant),
     session: AsyncSession = Depends(get_db),
 ) -> str:
     stmt = select(ExperimentReport).where(

@@ -6,39 +6,42 @@ import uuid
 from contextlib import asynccontextmanager
 from typing import Any
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
+from agentops_core.auth import make_get_tenant
+from agentops_core.base import Tenant
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from agent_slo.alerts import evaluate_alerts, resolve_alerts
-from agent_slo.metrics import (
-    sli_requests_total, slo_current_value, slo_target, slo_burn_rate,
-    slo_budget_remaining, slo_breaching, slo_alerts_total,
-    otel_spans_ingested_total, add_metrics_route,
-)
-from agentops_core.auth import make_get_tenant
-
 from agent_slo.compliance import generate_owasp_report
 from agent_slo.config import Settings
-from agent_slo.db import AsyncSessionLocal, engine, get_db
+from agent_slo.db import engine, get_db
 from agent_slo.engine import evaluate_all_slos
+from agent_slo.metrics import (
+    add_metrics_route,
+    otel_spans_ingested_total,
+    sli_requests_total,
+    slo_alerts_total,
+    slo_breaching,
+    slo_budget_remaining,
+    slo_burn_rate,
+    slo_current_value,
+    slo_target,
+)
 from agent_slo.models import (
     Agent,
     Alert,
     Base,
-    Metric,
     ServiceLevelIndicator,
     ServiceLevelObjective,
 )
-from agentops_core.base import Tenant
 from agent_slo.receiver import ingest_traces
 from agent_slo.schemas import (
     AgentCreate,
     AgentOut,
     AlertOut,
     ComplianceReport,
-    MetricOut,
     SLICreate,
     SLIOut,
     SLOCreate,
@@ -47,7 +50,6 @@ from agent_slo.schemas import (
     TenantCreate,
     TenantOut,
 )
-from agent_slo.yaml_spec import parse_yaml, window_to_seconds
 
 settings = Settings()
 
@@ -216,20 +218,22 @@ async def status(
         if severity:
             slo_alerts_total.labels(severity=severity, slo_name=slo_name).inc()
 
-        entries.append(StatusEntry(
-            slo_id=s["slo_id"],
-            slo_name=slo_name,
-            sli_name=s["sli_name"],
-            window=s["window"],
-            target=s["target"],
-            current_value=s["current_value"],
-            comparator=s["comparator"],
-            is_breaching=s["is_breaching"],
-            budget_consumed=s["budget_consumed"],
-            budget_remaining=s["budget_remaining"],
-            burn_rate=s["burn_rate"],
-            alert_severity=severity,
-        ))
+        entries.append(
+            StatusEntry(
+                slo_id=s["slo_id"],
+                slo_name=slo_name,
+                sli_name=s["sli_name"],
+                window=s["window"],
+                target=s["target"],
+                current_value=s["current_value"],
+                comparator=s["comparator"],
+                is_breaching=s["is_breaching"],
+                budget_consumed=s["budget_consumed"],
+                budget_remaining=s["budget_remaining"],
+                burn_rate=s["burn_rate"],
+                alert_severity=severity,
+            )
+        )
     await session.commit()
     return entries
 
@@ -256,6 +260,7 @@ async def resolve_alert(
     if not alert:
         raise HTTPException(status_code=404, detail="Alert not found")
     from agentops_core.base import now_utc as model_now_utc
+
     alert.resolved_at = model_now_utc()
     await session.commit()
     await session.refresh(alert)
@@ -273,12 +278,14 @@ async def owasp_compliance(
 
 @app.get("/api/v1/compliance/eu-ai-act")
 async def eu_ai_act_compliance(tenant: Tenant = Depends(get_tenant)) -> JSONResponse:
-    return JSONResponse({
-        "tenant": str(tenant.id),
-        "standard": "EU AI Act",
-        "note": "Evidence generator scaffold; Article 12 logging enabled via otel_spans table.",
-        "controls": ["Art. 12 traceability", "Art. 14 human oversight via alert resolve"],
-    })
+    return JSONResponse(
+        {
+            "tenant": str(tenant.id),
+            "standard": "EU AI Act",
+            "note": "Evidence generator scaffold; Article 12 logging enabled via otel_spans table.",
+            "controls": ["Art. 12 traceability", "Art. 14 human oversight via alert resolve"],
+        }
+    )
 
 
 @app.post(settings.otel_receiver_path)

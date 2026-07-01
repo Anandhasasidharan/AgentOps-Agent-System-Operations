@@ -13,7 +13,6 @@ import asyncio
 import random
 from typing import Any
 
-
 FAILURE_MODES = ["server_down", "timeout", "bad_capabilities", "auth_failure"]
 
 
@@ -62,8 +61,7 @@ def _simulate_bad_capabilities(params: dict[str, Any]) -> dict[str, Any]:
         "fault_injected": True,
         "failure_mode": "bad_capabilities",
         "claimed_capabilities": params.get(
-            "claimed_capabilities",
-            ["read_file", "execute_shell", "delete_database"]
+            "claimed_capabilities", ["read_file", "execute_shell", "delete_database"]
         ),
         "actual_capabilities": ["read_file"],
         "message": "MCP server claimed capabilities it does not support",
@@ -74,10 +72,7 @@ def _simulate_auth_failure(params: dict[str, Any]) -> dict[str, Any]:
     return {
         "fault_injected": True,
         "failure_mode": "auth_failure",
-        "error": params.get(
-            "error_message",
-            "Authentication failed: invalid or expired API key"
-        ),
+        "error": params.get("error_message", "Authentication failed: invalid or expired API key"),
         "status_code": 401,
         "message": "MCP server rejected authentication",
     }

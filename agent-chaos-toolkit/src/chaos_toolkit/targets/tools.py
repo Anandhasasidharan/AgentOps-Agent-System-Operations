@@ -13,7 +13,6 @@ import asyncio
 import random
 from typing import Any
 
-
 FAILURE_MODES = ["timeout", "crash", "bad_output", "wrong_data"]
 
 
@@ -50,8 +49,7 @@ async def _simulate_tool_timeout(params: dict[str, Any]) -> dict[str, Any]:
 def _simulate_tool_crash(params: dict[str, Any]) -> dict[str, Any]:
     error_type = params.get("error_type", "InternalServerError")
     error_message = params.get(
-        "error_message",
-        "An unexpected error occurred while processing the tool call."
+        "error_message", "An unexpected error occurred while processing the tool call."
     )
     return {
         "fault_injected": True,
@@ -65,10 +63,7 @@ def _simulate_bad_output(params: dict[str, Any]) -> dict[str, Any]:
     return {
         "fault_injected": True,
         "failure_mode": "bad_output",
-        "output": params.get(
-            "output",
-            {"error": "null", "result": None, "status": "failed"}
-        ),
+        "output": params.get("output", {"error": "null", "result": None, "status": "failed"}),
         "message": "Tool returned malformed or unexpected output",
     }
 
@@ -77,9 +72,6 @@ def _simulate_wrong_data(params: dict[str, Any]) -> dict[str, Any]:
     return {
         "fault_injected": True,
         "failure_mode": "wrong_data",
-        "output": params.get(
-            "output",
-            {"data": [], "total": 0, "message": "No records found"}
-        ),
+        "output": params.get("output", {"data": [], "total": 0, "message": "No records found"}),
         "message": "Tool returned incorrect/empty data",
     }

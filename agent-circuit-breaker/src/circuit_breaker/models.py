@@ -7,10 +7,9 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import ForeignKey, Index, JSON, String, UniqueConstraint, Uuid
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-
 from agentops_core.base import Base, now_utc
+from sqlalchemy import JSON, ForeignKey, Index, String, UniqueConstraint, Uuid
+from sqlalchemy.orm import Mapped, mapped_column
 
 
 class Policy(Base):

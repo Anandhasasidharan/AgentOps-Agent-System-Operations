@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import and_, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from agent_slo.models import Alert, ServiceLevelObjective
@@ -32,7 +32,10 @@ async def evaluate_alerts(
     unresolved = {(a.severity, a.threshold) for a in result.scalars().all()}
 
     for spec in slo.burn_rate_alert_thresholds:
-        if burn_rate >= spec["threshold"] and (spec["severity"], spec["threshold"]) not in unresolved:
+        if (
+            burn_rate >= spec["threshold"]
+            and (spec["severity"], spec["threshold"]) not in unresolved
+        ):
             alert = Alert(
                 tenant_id=slo.tenant_id,
                 slo_id=slo.id,

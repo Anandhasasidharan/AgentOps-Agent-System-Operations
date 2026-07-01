@@ -1,14 +1,12 @@
-from prometheus_client import Counter, Histogram, Gauge, generate_latest, CONTENT_TYPE_LATEST
-from starlette.responses import Response
 from fastapi import FastAPI
+from prometheus_client import CONTENT_TYPE_LATEST, Gauge, Histogram, generate_latest
+from starlette.responses import Response
 
-upstream_health = Gauge(
-    "dash_upstream_health", "Upstream service health (1=up)",
-    ["service"]
-)
+upstream_health = Gauge("dash_upstream_health", "Upstream service health (1=up)", ["service"])
 
 health_check_duration_seconds = Histogram(
-    "dash_health_check_duration_seconds", "Health check duration",
+    "dash_health_check_duration_seconds",
+    "Health check duration",
     ["service"],
     buckets=(0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5),
 )

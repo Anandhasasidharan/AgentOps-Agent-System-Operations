@@ -206,6 +206,23 @@ ALB health checks → /health on each service
 
 See `terraform/` for the full configuration (12 files, ~300 lines).
 
+### Kubernetes (Helm)
+
+```bash
+helm install agentops ./helm/agentops \
+  --set image.repository=agentops \
+  --set apiKey=my-api-key \
+  --set database.externalUrl=postgresql+asyncpg://user:pass@host:5432/agentops
+```
+
+See `helm/` for the full chart (9 templates, ~400 lines).
+
+### Monitoring (Prometheus + Grafana)
+
+With `docker compose up`, Prometheus scrapes all 4 services on port 9090,
+and Grafana is available at port 3000 (admin/admin). A pre-configured
+dashboard panels each service's key metrics.
+
 ## Project Structure
 
 ```
@@ -213,7 +230,11 @@ See `terraform/` for the full configuration (12 files, ~300 lines).
 ├── agent-circuit-breaker/      # Policy enforcement + anomaly detection
 ├── agent-chaos-toolkit/        # Failure injection + resilience testing
 ├── agent-slo-platform/         # SLO evaluation + compliance reporting
+├── agentops-sdk/               # Python client SDK (httpx-based)
 ├── dashboard/                  # Health aggregation UI
+├── monitoring/                 # Prometheus config + Grafana dashboards
+├── helm/                       # Kubernetes Helm chart
+├── .github/workflows/          # GitHub Actions CI/CD pipeline
 ├── scripts/seed.py             # Demo data populator
 ├── scripts/bootstrap-terraform.sh   # Terraform remote state bootstrap
 ├── terraform/                  # AWS infrastructure as code (VPC, ALB, ECS, RDS)

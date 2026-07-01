@@ -1,0 +1,62 @@
+{{- if not .Values.database.externalUrl }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "agentops.fullname" . }}-postgres
+  labels: {{- include "agentops.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ include "agentops.fullname" . }}-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "agentops.name" . }}-postgres
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "agentops.name" . }}-postgres
+    spec:
+      containers:
+        - name: postgres
+          image: {{ .Values.database.postgres.image }}
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              value: {{ .Values.database.postgres.user }}
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "agentops.fullname" . }}-secret
+                  key: db-password
+            - name: POSTGRES_DB
+              value: {{ .Values.database.postgres.database }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", {{ .Values.database.postgres.user | quote }}]
+            initialDelaySeconds: 10
+            periodSeconds: 10
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: {{ .Values.database.postgres.storageSize }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "agentops.fullname" . }}-postgres
+  labels: {{- include "agentops.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5432
+      targetPort: 5432
+  selector:
+    app.kubernetes.io/name: {{ include "agentops.name" . }}-postgres
+{{- end }}

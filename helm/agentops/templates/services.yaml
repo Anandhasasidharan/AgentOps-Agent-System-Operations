@@ -1,0 +1,17 @@
+{{- $services := dict "slo-platform" 8000 "circuit-breaker" 8001 "chaos-toolkit" 8002 "dashboard" 8003 -}}
+{{- range $name, $port := $services }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "agentops.fullname" $ }}-{{ $name }}
+  labels: {{- include "agentops.labels" $ | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ $port }}
+      targetPort: {{ $port }}
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: {{ include "agentops.name" $ }}-{{ $name }}
+{{- end }}

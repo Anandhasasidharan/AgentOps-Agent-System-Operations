@@ -1,0 +1,16 @@
+apiVersion: v2
+name: agentops
+description: AgentOps — AI Agent Safety & Observability Platform
+version: 0.1.0
+appVersion: "0.1.0"
+type: application
+keywords:
+  - ai
+  - agents
+  - safety
+  - observability
+  - circuit-breaker
+  - chaos-engineering
+  - slo
+sources:
+  - https://github.com/Anandhasasidharan/AgentOps-Agent-System-Operations

@@ -1,0 +1,54 @@
+# AgentOps Helm Values
+# Override per environment: helm install agentops ./helm/agentops -f values-prod.yaml
+
+# Global settings
+global:
+  namespace: agentops
+
+# Container image settings
+image:
+  repository: agentops
+  tag: latest
+  pullPolicy: IfNotPresent
+
+# Database
+database:
+  # Set to external hostname to use an existing database
+  externalUrl: ""
+  # If externalUrl is empty, a PostgreSQL pod is created
+  postgres:
+    image: postgres:16-alpine
+    user: agentops
+    password: agentops
+    database: agentops
+    storageSize: 10Gi
+
+# API key for tenant authentication
+apiKey: dev-api-key
+
+# Resource limits per service
+resources:
+  circuitBreaker:
+    requests: { cpu: "128m", memory: "256Mi" }
+    limits:   { cpu: "256m", memory: "512Mi" }
+  chaosToolkit:
+    requests: { cpu: "128m", memory: "256Mi" }
+    limits:   { cpu: "256m", memory: "512Mi" }
+  sloPlatform:
+    requests: { cpu: "128m", memory: "256Mi" }
+    limits:   { cpu: "256m", memory: "512Mi" }
+  dashboard:
+    requests: { cpu: "64m", memory: "128Mi" }
+    limits:   { cpu: "128m", memory: "256Mi" }
+
+# Replicas per service
+replicaCount: 1
+
+# Ingress
+ingress:
+  enabled: false
+  host: agentops.example.com
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip

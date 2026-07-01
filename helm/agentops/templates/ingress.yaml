@@ -1,0 +1,121 @@
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "agentops.fullname" . }}
+  annotations: {{- .Values.ingress.annotations | toYaml | nindent 4 }}
+spec:
+  ingressClassName: {{ .Values.ingress.className | default "alb" }}
+  rules:
+    - host: {{ .Values.ingress.host }}
+      http:
+        paths:
+          - path: /api/v1/tenants
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "agentops.fullname" . }}-slo-platform
+                port: 8000
+          - path: /api/v1/agents
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "agentops.fullname" . }}-slo-platform
+                port: 8000
+          - path: /api/v1/slis
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "agentops.fullname" . }}-slo-platform
+                port: 8000
+          - path: /api/v1/slos
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "agentops.fullname" . }}-slo-platform
+                port: 8000
+          - path: /api/v1/status
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "agentops.fullname" . }}-slo-platform
+                port: 8000
+          - path: /api/v1/alerts
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "agentops.fullname" . }}-slo-platform
+                port: 8000
+          - path: /api/v1/compliance
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "agentops.fullname" . }}-slo-platform
+                port: 8000
+          - path: /v1/traces
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "agentops.fullname" . }}-slo-platform
+                port: 8000
+          - path: /v1/intercept
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "agentops.fullname" . }}-circuit-breaker
+                port: 8001
+          - path: /api/v1/policies
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "agentops.fullname" . }}-circuit-breaker
+                port: 8001
+          - path: /api/v1/kill-switch
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "agentops.fullname" . }}-circuit-breaker
+                port: 8001
+          - path: /api/v1/incidents
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "agentops.fullname" . }}-circuit-breaker
+                port: 8001
+          - path: /api/v1/agents/*/status
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: {{ include "agentops.fullname" . }}-circuit-breaker
+                port: 8001
+          - path: /api/v1/scenarios
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "agentops.fullname" . }}-chaos-toolkit
+                port: 8002
+          - path: /api/v1/experiments
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "agentops.fullname" . }}-chaos-toolkit
+                port: 8002
+          - path: /api/v1/resilience-score
+            pathType: Exact
+            backend:
+              service:
+                name: {{ include "agentops.fullname" . }}-chaos-toolkit
+                port: 8002
+          - path: /api/v1/reports
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "agentops.fullname" . }}-chaos-toolkit
+                port: 8002
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "agentops.fullname" . }}-dashboard
+                port: 8003
+{{- end }}

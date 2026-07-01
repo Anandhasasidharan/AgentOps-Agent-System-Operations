@@ -1,0 +1,78 @@
+{{- $services := dict "slo-platform" (dict "port" 8000 "app" "agent_slo.api:app" "envPre" "SLO_URL" "otel" false) -}}
+{{- $services := merge $services (dict "circuit-breaker" (dict "port" 8001 "app" "circuit_breaker.api:app" "envPre" "CB_URL" "otel" true)) -}}
+{{- $services := merge $services (dict "chaos-toolkit" (dict "port" 8002 "app" "chaos_toolkit.api:app" "envPre" "CHAOS_URL" "otel" true)) -}}
+{{- $services := merge $services (dict "dashboard" (dict "port" 8003 "app" "dashboard.api:app" "envPre" "" "otel" false)) -}}
+{{- range $name, $svc := $services }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "agentops.fullname" $ }}-{{ $name }}
+  labels: {{- include "agentops.labels" $ | nindent 4 }}
+spec:
+  replicas: {{ $.Values.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "agentops.name" $ }}-{{ $name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "agentops.name" $ }}-{{ $name }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "{{ $svc.port }}"
+    spec:
+      containers:
+        - name: {{ $name }}
+          image: "{{ $.Values.image.repository }}/{{ $name }}:{{ $.Values.image.tag }}"
+          imagePullPolicy: {{ $.Values.image.pullPolicy }}
+          command: ["uvicorn", "{{ $svc.app }}", "--host", "0.0.0.0", "--port", "{{ $svc.port }}"]
+          ports:
+            - containerPort: {{ $svc.port }}
+              protocol: TCP
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "agentops.fullname" $ }}-config
+                  key: DB_URL
+            - name: API_KEY
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "agentops.fullname" $ }}-config
+                  key: API_KEY
+            {{- if $svc.otel }}
+            - name: OTEL_EXPORTER_ENDPOINT
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "agentops.fullname" $ }}-config
+                  key: OTEL_ENDPOINT
+            {{- end }}
+            {{- if eq $name "dashboard" }}
+            - name: CB_URL
+              value: "http://{{ include "agentops.fullname" $ }}-circuit-breaker:8001"
+            - name: CHAOS_URL
+              value: "http://{{ include "agentops.fullname" $ }}-chaos-toolkit:8002"
+            - name: SLO_URL
+              value: "http://{{ include "agentops.fullname" $ }}-slo-platform:8000"
+            {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: {{ $svc.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: {{ $svc.port }}
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: {{ (index $.Values.resources (regexReplaceAll "-" $name "_")).requests.cpu | quote }}
+              memory: {{ (index $.Values.resources (regexReplaceAll "-" $name "_")).requests.memory | quote }}
+            limits:
+              cpu: {{ (index $.Values.resources (regexReplaceAll "-" $name "_")).limits.cpu | quote }}
+              memory: {{ (index $.Values.resources (regexReplaceAll "-" $name "_")).limits.memory | quote }}
+{{- end }}

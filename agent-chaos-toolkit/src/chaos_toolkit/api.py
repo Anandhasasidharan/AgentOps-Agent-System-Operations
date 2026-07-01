@@ -209,7 +209,7 @@ async def get_resilience_score(
     session: AsyncSession = Depends(get_db),
 ) -> ResilienceScoreSummary:
     score = await compute_resilience_score(session, tenant.id)
-    resilience_score.labels(tenant_id=str(tenant.id)).set(score.overall_score)
+    resilience_score.labels(tenant_id=str(tenant.id)).set(score.avg_resilience_score)
     return score
 
 

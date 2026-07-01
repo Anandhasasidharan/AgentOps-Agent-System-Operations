@@ -1,0 +1,79 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: agentops
+      POSTGRES_PASSWORD: agentops
+      POSTGRES_DB: agentops
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agentops"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  circuit-breaker:
+    build:
+      context: .
+      args:
+        SERVICE: agent-circuit-breaker
+    command: uvicorn circuit_breaker.api:app --host 0.0.0.0 --port 8001
+    ports:
+      - "8001:8001"
+    environment:
+      DATABASE_URL: "postgresql+asyncpg://agentops:agentops@postgres:5432/agentops"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  chaos-toolkit:
+    build:
+      context: .
+      args:
+        SERVICE: agent-chaos-toolkit
+    command: uvicorn chaos_toolkit.api:app --host 0.0.0.0 --port 8002
+    ports:
+      - "8002:8002"
+    environment:
+      DATABASE_URL: "postgresql+asyncpg://agentops:agentops@postgres:5432/agentops"
+      OTEL_EXPORTER_ENDPOINT: "http://agent-slo-platform:8000/v1/traces"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  agent-slo-platform:
+    build:
+      context: .
+      args:
+        SERVICE: agent-slo-platform
+    command: uvicorn agent_slo.api:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: "postgresql+asyncpg://agentops:agentops@postgres:5432/agentops"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  dashboard:
+    build:
+      context: .
+      args:
+        SERVICE: dashboard
+    command: uvicorn dashboard.api:app --host 0.0.0.0 --port 8003
+    ports:
+      - "8003:8003"
+    environment:
+      CB_URL: "http://circuit-breaker:8001"
+      CHAOS_URL: "http://chaos-toolkit:8002"
+      SLO_URL: "http://agent-slo-platform:8000"
+    depends_on:
+      - circuit-breaker
+      - chaos-toolkit
+      - agent-slo-platform
+
+volumes:
+  pgdata:

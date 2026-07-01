@@ -72,7 +72,7 @@ jobs:
     name: Build Docker images
     runs-on: ubuntu-latest
     needs: [test, lint]
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && secrets.DOCKER_USERNAME != ''
     steps:
       - uses: actions/checkout@v4
 
@@ -101,7 +101,7 @@ jobs:
     name: Deploy infrastructure (Terraform)
     runs-on: ubuntu-latest
     needs: [build]
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && secrets.AWS_ACCESS_KEY_ID != ''
     defaults:
       run:
         working-directory: terraform
@@ -133,7 +133,7 @@ jobs:
     name: Deploy application (Helm)
     runs-on: ubuntu-latest
     needs: [deploy-infra]
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && secrets.DOCKER_USERNAME != ''
     steps:
       - uses: actions/checkout@v4
 
@@ -159,7 +159,7 @@ jobs:
     name: Smoke test
     runs-on: ubuntu-latest
     needs: [deploy-app]
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && secrets.DOCKER_USERNAME != ''
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -179,7 +179,7 @@ jobs:
               status = await sdk.get_status()
               print(f'SLO status: {len(status)} entries')
               score = await sdk.get_resilience_score()
-              print(f'Resilience: {score[\"overall_score\"]}')
+              print(f'Resilience: {score[\"avg_resilience_score\"]}')
               await sdk.close()
           asyncio.run(main())
           "

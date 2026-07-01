@@ -14,19 +14,19 @@ app = typer.Typer(help="Agent Circuit Breaker CLI")
 API_BASE = "http://localhost:8001"
 
 
-def _headers(tenant_id: str) -> dict[str, str]:
-    return {"X-Tenant-ID": tenant_id, "Content-Type": "application/json"}
+def _headers(api_key: str) -> dict[str, str]:
+    return {"X-API-Key": api_key, "Content-Type": "application/json"}
 
 
 @app.command()
 def apply(
     file: Path = typer.Argument(..., help="Path to YAML file containing Policy definitions"),
-    tenant_id: str = typer.Option(..., "--tenant", "-t", help="Tenant UUID"),
+    api_key: str = typer.Option("dev-api-key", "--api-key", "-k", help="API key (tenant slug)"),
     base_url: str = typer.Option(API_BASE, "--base-url", "-u"),
 ) -> None:
     content = file.read_text()
     docs = parse_yaml(content)
-    client = httpx.Client(base_url=base_url, headers=_headers(tenant_id))
+    client = httpx.Client(base_url=base_url, headers=_headers(api_key))
 
     for doc in docs:
         meta = doc.metadata
@@ -49,10 +49,10 @@ def apply(
 @app.command()
 def status(
     agent_id: str = typer.Argument(..., help="Agent ID"),
-    tenant_id: str = typer.Option(..., "--tenant", "-t", help="Tenant UUID"),
+    api_key: str = typer.Option("dev-api-key", "--api-key", "-k", help="API key (tenant slug)"),
     base_url: str = typer.Option(API_BASE, "--base-url", "-u"),
 ) -> None:
-    client = httpx.Client(base_url=base_url, headers=_headers(tenant_id))
+    client = httpx.Client(base_url=base_url, headers=_headers(api_key))
     resp = client.get(f"/api/v1/agents/{agent_id}/status")
     resp.raise_for_status()
     data = resp.json()
@@ -69,10 +69,10 @@ def status(
 
 @app.command()
 def policies(
-    tenant_id: str = typer.Option(..., "--tenant", "-t", help="Tenant UUID"),
+    api_key: str = typer.Option("dev-api-key", "--api-key", "-k", help="API key (tenant slug)"),
     base_url: str = typer.Option(API_BASE, "--base-url", "-u"),
 ) -> None:
-    client = httpx.Client(base_url=base_url, headers=_headers(tenant_id))
+    client = httpx.Client(base_url=base_url, headers=_headers(api_key))
     resp = client.get("/api/v1/policies")
     resp.raise_for_status()
     for p in resp.json():
@@ -85,10 +85,10 @@ def kill(
     agent_id: str = typer.Argument(..., help="Agent ID"),
     reason: str = typer.Option("Manual kill", "--reason", "-r"),
     ttl: int = typer.Option(3600, "--ttl", help="TTL in seconds"),
-    tenant_id: str = typer.Option(..., "--tenant", "-t", help="Tenant UUID"),
+    api_key: str = typer.Option("dev-api-key", "--api-key", "-k", help="API key (tenant slug)"),
     base_url: str = typer.Option(API_BASE, "--base-url", "-u"),
 ) -> None:
-    client = httpx.Client(base_url=base_url, headers=_headers(tenant_id))
+    client = httpx.Client(base_url=base_url, headers=_headers(api_key))
     resp = client.post(f"/api/v1/kill-switch/{agent_id}/activate?reason={reason}&ttl={ttl}")
     resp.raise_for_status()
     typer.echo(f"Kill switch activated for {agent_id}: {reason}")
@@ -97,10 +97,10 @@ def kill(
 @app.command()
 def release(
     agent_id: str = typer.Argument(..., help="Agent ID"),
-    tenant_id: str = typer.Option(..., "--tenant", "-t", help="Tenant UUID"),
+    api_key: str = typer.Option("dev-api-key", "--api-key", "-k", help="API key (tenant slug)"),
     base_url: str = typer.Option(API_BASE, "--base-url", "-u"),
 ) -> None:
-    client = httpx.Client(base_url=base_url, headers=_headers(tenant_id))
+    client = httpx.Client(base_url=base_url, headers=_headers(api_key))
     resp = client.post(f"/api/v1/kill-switch/{agent_id}/release")
     resp.raise_for_status()
     typer.echo(f"Kill switch released for {agent_id}")

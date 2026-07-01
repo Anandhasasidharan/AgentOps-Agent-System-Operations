@@ -13,6 +13,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
+from agentops_core.base import Tenant
 from circuit_breaker.api import app, get_tenant
 from circuit_breaker.models import Base, Policy, ToolCall
 
@@ -53,8 +54,8 @@ async def client(session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
     async def override_get_db() -> AsyncGenerator[AsyncSession, None]:
         yield session
 
-    async def override_get_tenant() -> uuid.UUID:
-        return TEST_TENANT_ID
+    async def override_get_tenant() -> Tenant:
+        return Tenant(id=TEST_TENANT_ID, slug="test", name="Test")
 
     app.dependency_overrides[get_tenant] = override_get_tenant
     app.dependency_overrides.clear()

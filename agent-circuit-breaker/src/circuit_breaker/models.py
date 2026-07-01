@@ -3,25 +3,14 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import JSON, ForeignKey, Index, String, UniqueConstraint, Uuid
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+from sqlalchemy import ForeignKey, Index, JSON, String, UniqueConstraint, Uuid
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-
-def now_utc() -> datetime:
-    return datetime.now(timezone.utc)
-
-
-class Base(DeclarativeBase):
-    type_annotation_map: dict[Any, Any] = {
-        dict[str, Any]: JSON,
-        list[dict[str, Any]]: JSON,
-        list[str]: JSON,
-        list[float]: JSON,
-    }
+from agentops_core.base import Base, now_utc
 
 
 class Policy(Base):

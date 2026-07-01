@@ -5,19 +5,24 @@ Intercepts tool calls, runs them through the engines, and returns a decision.
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from agentops_core.telemetry import emit_tool_call_span
 from circuit_breaker.anomaly_engine import compute_anomaly_score
+from circuit_breaker.config import Settings
 from circuit_breaker.incident_engine import create_incident
 from circuit_breaker.kill_switch import check_kill_switch
 from circuit_breaker.models import AgentState, ToolCall
 from circuit_breaker.policy_engine import PolicyDecision, evaluate_policies, load_policies
 from circuit_breaker.risk_engine import score_tool_call
 from circuit_breaker.state_tracker import update_agent_state
+
+settings = Settings()
 
 
 async def intercept_tool_call(
@@ -31,6 +36,7 @@ async def intercept_tool_call(
     duration_ms: float | None = None,
     token_count: int | None = None,
     cost: float | None = None,
+    tenant_slug: str | None = None,
 ) -> dict[str, Any]:
     ts = datetime.now(timezone.utc)
 
@@ -122,6 +128,17 @@ async def intercept_tool_call(
     result["incident_id"] = incident_id
     result["risk_score"] = risk_score
     result["anomaly_score"] = anomaly_score
+
+    asyncio.ensure_future(emit_tool_call_span(
+        endpoint=settings.otel_exporter_endpoint,
+        tenant_slug=tenant_slug or "",
+        agent_id=agent_id,
+        tool_name=tool_name,
+        blocked=tool_call.blocked,
+        duration_ms=duration_ms,
+        token_count=token_count,
+        risk_score=risk_score,
+    ))
     return result
 
 

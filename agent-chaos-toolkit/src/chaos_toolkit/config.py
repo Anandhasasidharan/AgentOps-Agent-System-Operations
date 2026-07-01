@@ -1,12 +1,9 @@
 """Application configuration."""
 
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from agentops_core.config import AgentOpsSettings
 
 
-class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="", case_sensitive=False)
-
-    database_url: str = "sqlite+aiosqlite:///chaos_toolkit.db"
-    api_key: str = "dev-api-key"
-    log_level: str = "info"
+class Settings(AgentOpsSettings):
+    database_url: str = "postgresql+asyncpg://agentops:agentops@localhost:5432/chaos_toolkit"
     default_llm_model: str = "gpt-4o"
+    otel_exporter_endpoint: str = "http://localhost:8000/v1/traces"

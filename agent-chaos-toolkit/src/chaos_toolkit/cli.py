@@ -50,11 +50,11 @@ def apply(
 def run(
     scenario_id: str = typer.Argument(..., help="Scenario UUID"),
     agent_id: str = typer.Argument(..., help="Agent ID to test"),
-    tenant_id: str = typer.Option(..., "--tenant", "-t", help="Tenant UUID"),
+    api_key: str = typer.Option(..., "--api-key", "-k", help="API key (tenant slug)"),
     base_url: str = typer.Option(API_BASE, "--base-url", "-u"),
 ) -> None:
     """Run a single chaos experiment."""
-    client = httpx.Client(base_url=base_url, headers=_headers(tenant_id))
+    client = httpx.Client(base_url=base_url, headers=_headers(api_key))
     payload = {"scenario_id": scenario_id, "agent_id": agent_id}
     resp = client.post("/api/v1/experiments", json=payload)
     resp.raise_for_status()
@@ -67,12 +67,12 @@ def run(
 @app.command()
 def batch(
     agent_id: str = typer.Argument(..., help="Agent ID to test"),
-    tenant_id: str = typer.Option(..., "--tenant", "-t", help="Tenant UUID"),
+    api_key: str = typer.Option(..., "--api-key", "-k", help="API key (tenant slug)"),
     all_scenarios: bool = typer.Option(True, "--all/--select"),
     base_url: str = typer.Option(API_BASE, "--base-url", "-u"),
 ) -> None:
     """Run all chaos scenarios against an agent."""
-    client = httpx.Client(base_url=base_url, headers=_headers(tenant_id))
+    client = httpx.Client(base_url=base_url, headers=_headers(api_key))
     payload = {"agent_id": agent_id, "run_all_enabled": all_scenarios}
     resp = client.post("/api/v1/experiments/batch", json=payload)
     resp.raise_for_status()
@@ -86,11 +86,11 @@ def batch(
 
 @app.command()
 def report(
-    tenant_id: str = typer.Option(..., "--tenant", "-t", help="Tenant UUID"),
+    api_key: str = typer.Option(..., "--api-key", "-k", help="API key (tenant slug)"),
     base_url: str = typer.Option(API_BASE, "--base-url", "-u"),
 ) -> None:
     """Show resilience score summary."""
-    client = httpx.Client(base_url=base_url, headers=_headers(tenant_id))
+    client = httpx.Client(base_url=base_url, headers=_headers(api_key))
     resp = client.get("/api/v1/resilience-score")
     resp.raise_for_status()
     data = resp.json()

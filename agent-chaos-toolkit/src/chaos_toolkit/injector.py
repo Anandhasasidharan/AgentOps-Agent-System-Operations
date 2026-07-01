@@ -6,6 +6,7 @@ logs results, and returns experiment outcome.
 
 from __future__ import annotations
 
+import asyncio
 import time
 import uuid
 from datetime import datetime, timezone
@@ -14,11 +15,15 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from agentops_core.telemetry import emit_tool_call_span
+from chaos_toolkit.config import Settings
 from chaos_toolkit.models import Experiment, FaultLog, Scenario
 from chaos_toolkit.targets.llm import inject_llm_fault
 from chaos_toolkit.targets.mcp import inject_mcp_fault
 from chaos_toolkit.targets.rag import inject_rag_fault
 from chaos_toolkit.targets.tools import inject_tool_fault
+
+settings = Settings()
 
 
 def now_utc() -> datetime:
@@ -41,6 +46,7 @@ async def run_experiment(
     target_override: str | None = None,
     failure_mode_override: str | None = None,
     config_override: dict[str, Any] | None = None,
+    tenant_slug: str | None = None,
 ) -> Experiment:
     stmt = select(Scenario).where(Scenario.id == scenario_id, Scenario.tenant_id == tenant_id)
     result = await session.execute(stmt)
@@ -112,6 +118,16 @@ async def run_experiment(
 
     experiment.completed_at = now_utc()
     await session.flush()
+
+    asyncio.ensure_future(emit_tool_call_span(
+        endpoint=settings.otel_exporter_endpoint,
+        tenant_slug=tenant_slug or "",
+        agent_id=agent_id,
+        tool_name=f"chaos.{target_type}.{failure_mode}",
+        blocked=False,
+        duration_ms=injection_time,
+        risk_score=experiment.resilience_score,
+    ))
     return experiment
 
 
@@ -153,6 +169,7 @@ async def run_batch(
     agent_id: str,
     scenario_ids: list[uuid.UUID] | None = None,
     run_all: bool = False,
+    tenant_slug: str | None = None,
 ) -> list[Experiment]:
     if run_all:
         stmt = select(Scenario).where(
@@ -173,7 +190,7 @@ async def run_batch(
     experiments: list[Experiment] = []
     for scenario in scenarios:
         experiment = await run_experiment(
-            session, tenant_id, scenario.id, agent_id
+            session, tenant_id, scenario.id, agent_id, tenant_slug=tenant_slug
         )
         await evaluate_experiment_result(experiment, scenario.expected_behavior)
         experiments.append(experiment)

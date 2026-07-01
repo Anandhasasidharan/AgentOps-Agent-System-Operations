@@ -3,37 +3,14 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, ForeignKey, Index, String, UniqueConstraint
+from sqlalchemy import ForeignKey, Index, JSON, String, UniqueConstraint
 from sqlalchemy import Uuid
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-
-def now_utc() -> datetime:
-    return datetime.now(timezone.utc)
-
-
-class Base(DeclarativeBase):
-    type_annotation_map: dict[Any, Any] = {
-        dict[str, Any]: JSON,
-        list[dict[str, Any]]: JSON,
-        list[float]: JSON,
-    }
-
-
-class Tenant(Base):
-    __tablename__ = "tenants"
-
-    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    slug: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
-    name: Mapped[str] = mapped_column(String(128), nullable=False)
-    api_key_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(default=now_utc)
-
-    agents: Mapped[list["Agent"]] = relationship(back_populates="tenant")
-    slos: Mapped[list["ServiceLevelObjective"]] = relationship(back_populates="tenant")
+from agentops_core.base import Base, Tenant, now_utc
 
 
 class Agent(Base):
@@ -48,7 +25,7 @@ class Agent(Base):
     model_provider: Mapped[str | None] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(default=now_utc)
 
-    tenant: Mapped["Tenant"] = relationship(back_populates="agents")
+    tenant: Mapped["Tenant"] = relationship()
 
 
 class ServiceLevelIndicator(Base):
@@ -83,7 +60,7 @@ class ServiceLevelObjective(Base):
     created_at: Mapped[datetime] = mapped_column(default=now_utc)
     updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)
 
-    tenant: Mapped["Tenant"] = relationship(back_populates="slos")
+    tenant: Mapped["Tenant"] = relationship()
     sli: Mapped["ServiceLevelIndicator"] = relationship()
 
 

@@ -14,13 +14,13 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
 from agent_slo.api import app, get_db
+from agentops_core.base import Tenant
 from agent_slo.models import (
     Agent,
     Base,
     Metric,
     ServiceLevelIndicator,
     ServiceLevelObjective,
-    Tenant,
 )
 
 

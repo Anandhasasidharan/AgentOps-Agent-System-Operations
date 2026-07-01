@@ -12,6 +12,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from agent_slo.alerts import evaluate_alerts, resolve_alerts
+from agentops_core.auth import make_get_tenant
+
 from agent_slo.compliance import generate_owasp_report
 from agent_slo.config import Settings
 from agent_slo.db import AsyncSessionLocal, engine, get_db
@@ -23,8 +25,8 @@ from agent_slo.models import (
     Metric,
     ServiceLevelIndicator,
     ServiceLevelObjective,
-    Tenant,
 )
+from agentops_core.base import Tenant
 from agent_slo.receiver import ingest_traces
 from agent_slo.schemas import (
     AgentCreate,
@@ -55,19 +57,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Agent SLO Platform", version="0.1.0", lifespan=lifespan)
 
-
-async def get_tenant(
-    x_api_key: str = Header(..., alias="X-API-Key"),
-    session: AsyncSession = Depends(get_db),
-) -> Tenant:
-    # v1: API key maps directly to tenant slug for simplicity.
-    # In production this should be a hashed lookup.
-    stmt = select(Tenant).where(Tenant.slug == x_api_key)
-    result = await session.execute(stmt)
-    tenant = result.scalar_one_or_none()
-    if not tenant:
-        raise HTTPException(status_code=401, detail="Invalid API key")
-    return tenant
+get_tenant = make_get_tenant(get_db)
 
 
 @app.get("/health")
@@ -249,7 +239,7 @@ async def resolve_alert(
     alert = result.scalar_one_or_none()
     if not alert:
         raise HTTPException(status_code=404, detail="Alert not found")
-    from agent_slo.models import now_utc as model_now_utc
+    from agentops_core.base import now_utc as model_now_utc
     alert.resolved_at = model_now_utc()
     await session.commit()
     await session.refresh(alert)

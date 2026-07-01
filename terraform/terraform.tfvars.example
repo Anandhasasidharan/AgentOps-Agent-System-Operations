@@ -1,0 +1,6 @@
+aws_region = "us-east-1"
+environment = "production"
+db_password = "change-me-to-a-secure-password"
+api_key = "dev-api-key"
+image_repository = "agentops"
+image_tag = "latest"

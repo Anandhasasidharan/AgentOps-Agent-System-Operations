@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
+import json
+import logging
 import uuid
 from contextlib import asynccontextmanager
 
 from agentops_core.auth import make_get_tenant
+from agentops_events import TOPIC_CHAOS_EXPERIMENT, create_nats_client, make_event, publish_event
 from fastapi import Depends, FastAPI, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -34,14 +38,64 @@ from chaos_toolkit.schemas import (
 from chaos_toolkit.scoring import compute_resilience_score
 from chaos_toolkit.scoring import create_report as _create_report
 
+logger = logging.getLogger(__name__)
+
 settings = Settings()
+
+nats_nc = None
+sub_tasks: list[asyncio.Task] = []
+
+
+async def handle_cb_incident(msg):
+    try:
+        data = json.loads(msg.data.decode())
+        payload = data.get("payload", {})
+        agent_id = payload.get("agent_id") or data.get("agent_id")
+        tenant_id = data.get("tenant_id")
+        if not agent_id or not tenant_id:
+            return
+        from chaos_toolkit.db import get_db
+        async with get_db() as session:
+            stmt = select(Scenario).where(
+                Scenario.tenant_id == uuid.UUID(tenant_id),
+                Scenario.enabled,
+            )
+            result = await session.execute(stmt)
+            scenarios = list(result.scalars().all())
+            for sc in scenarios[:3]:
+                exp = await run_experiment(
+                    session, uuid.UUID(tenant_id), sc.id, agent_id,
+                    tenant_slug=None,
+                )
+                await evaluate_experiment_result(exp, sc.expected_behavior)
+            await session.commit()
+            logger.info(
+                "ran %d experiments after CB incident for %s",
+                min(len(scenarios), 3), agent_id,
+            )
+    except Exception:
+        logger.exception("error handling CB incident in Chaos")
+
+
+async def subscribe_cross_service():
+    if not nats_nc:
+        return
+    await nats_nc.subscribe("agentops.cb.incident.*", cb=handle_cb_incident)
+    logger.info("Chaos subscribed to agentops.cb.incident.*")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global nats_nc
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+    nats_nc = await create_nats_client(settings.nats_url)
+    sub_tasks.append(asyncio.ensure_future(subscribe_cross_service()))
     yield
+    for t in sub_tasks:
+        t.cancel()
+    if nats_nc:
+        await nats_nc.close()
     await engine.dispose()
 
 
@@ -148,6 +202,27 @@ async def create_experiment(
     await session.commit()
     status = experiment.status or "unknown"
     experiments_total.labels(status=status, target_type=scenario.target_type).inc()
+    await publish_event(
+        nats_nc, make_event(
+            "chaos-toolkit",
+            TOPIC_CHAOS_EXPERIMENT.format(
+                status="completed" if status == "completed" else "failed"
+            ),
+            tenant.id,
+            {
+                "agent_id": data.agent_id,
+                "experiment_id": str(experiment.id),
+                "scenario_id": str(data.scenario_id),
+                "scenario_name": experiment.scenario_name,
+                "target_type": scenario.target_type,
+                "failure_mode": experiment.failure_mode,
+                "status": status,
+                "resilience_score": experiment.resilience_score,
+                "agent_survived": experiment.agent_survived,
+            },
+            agent_id=data.agent_id,
+        )
+    )
     return experiment
 
 

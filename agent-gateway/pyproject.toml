@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agentops-gateway"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "agentops-events",
+    "fastapi>=0.111.0",
+    "uvicorn[standard]",
+    "prometheus-client",
+    "pydantic>=2.7.0",
+    "pydantic-settings>=2.3.0",
+    "websockets>=12.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio",
+    "httpx",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]

@@ -18,3 +18,7 @@ scrape_configs:
   - job_name: agentops-slo-platform
     static_configs:
       - targets: ["agent-slo-platform:8000"]
+
+  - job_name: agentops-gateway
+    static_configs:
+      - targets: ["gateway:8004"]

@@ -1,4 +1,11 @@
 services:
+  nats:
+    image: nats:latest
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    command: --http_port 8222
+
   postgres:
     image: postgres:16-alpine
     environment:
@@ -25,6 +32,7 @@ services:
       - "8001:8001"
     environment:
       DATABASE_URL: "postgresql+asyncpg://agentops:agentops@postgres:5432/agentops"
+      NATS_URL: "nats://nats:4222"
     depends_on:
       postgres:
         condition: service_healthy
@@ -40,6 +48,7 @@ services:
     environment:
       DATABASE_URL: "postgresql+asyncpg://agentops:agentops@postgres:5432/agentops"
       OTEL_EXPORTER_ENDPOINT: "http://agent-slo-platform:8000/v1/traces"
+      NATS_URL: "nats://nats:4222"
     depends_on:
       postgres:
         condition: service_healthy
@@ -54,6 +63,7 @@ services:
       - "8000:8000"
     environment:
       DATABASE_URL: "postgresql+asyncpg://agentops:agentops@postgres:5432/agentops"
+      NATS_URL: "nats://nats:4222"
     depends_on:
       postgres:
         condition: service_healthy
@@ -70,10 +80,26 @@ services:
       CB_URL: "http://circuit-breaker:8001"
       CHAOS_URL: "http://chaos-toolkit:8002"
       SLO_URL: "http://agent-slo-platform:8000"
+      GATEWAY_URL: "http://gateway:8004"
+      NATS_URL: "nats://nats:4222"
     depends_on:
       - circuit-breaker
       - chaos-toolkit
       - agent-slo-platform
+
+  gateway:
+    build:
+      context: .
+      args:
+        SERVICE: agent-gateway
+    command: uvicorn gateway.api:app --host 0.0.0.0 --port 8004
+    ports:
+      - "8004:8004"
+    environment:
+      NATS_URL: "nats://nats:4222"
+    depends_on:
+      nats:
+        condition: service_started
 
   prometheus:
     image: prom/prometheus:latest

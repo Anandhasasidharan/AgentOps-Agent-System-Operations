@@ -8,6 +8,13 @@ from typing import Any
 
 from agentops_core.auth import make_get_tenant
 from agentops_core.base import Tenant
+from agentops_events import (
+    TOPIC_SLO_ALERT,
+    TOPIC_SLO_BREACH,
+    create_nats_client,
+    make_event,
+    publish_event,
+)
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy import select
@@ -53,12 +60,18 @@ from agent_slo.schemas import (
 
 settings = Settings()
 
+nats_nc = None
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global nats_nc
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+    nats_nc = await create_nats_client(settings.nats_url)
     yield
+    if nats_nc:
+        await nats_nc.close()
     await engine.dispose()
 
 
@@ -217,6 +230,38 @@ async def status(
         slo_breaching.labels(slo_name=slo_name).set(1 if s["is_breaching"] else 0)
         if severity:
             slo_alerts_total.labels(severity=severity, slo_name=slo_name).inc()
+            await publish_event(
+                nats_nc, make_event(
+                    "slo-platform",
+                    TOPIC_SLO_ALERT.format(severity=severity),
+                    tenant.id,
+                    {
+                        "slo_id": str(s["slo_id"]),
+                        "slo_name": slo_name,
+                        "burn_rate": s["burn_rate"],
+                        "severity": severity,
+                        "budget_remaining": s["budget_remaining"],
+                        "is_breaching": s["is_breaching"],
+                    },
+                )
+            )
+        if s.get("is_breaching"):
+            await publish_event(
+                nats_nc, make_event(
+                    "slo-platform",
+                    TOPIC_SLO_BREACH.format(window=s["window"]),
+                    tenant.id,
+                    {
+                        "slo_id": str(s["slo_id"]),
+                        "slo_name": slo_name,
+                        "sli_name": s["sli_name"],
+                        "target": s["target"],
+                        "current_value": s["current_value"],
+                        "budget_remaining": s["budget_remaining"],
+                        "burn_rate": s["burn_rate"],
+                    },
+                )
+            )
 
         entries.append(
             StatusEntry(

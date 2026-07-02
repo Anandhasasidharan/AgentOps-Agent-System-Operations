@@ -2,12 +2,23 @@
 
 from __future__ import annotations
 
+import asyncio
+import json
+import logging  # noqa: E402
 import uuid
 from contextlib import asynccontextmanager
 from time import time
 from typing import Any
 
 from agentops_core.auth import make_get_tenant
+from agentops_events import (
+    TOPIC_CB_INCIDENT,
+    TOPIC_CB_INTERCEPT,
+    TOPIC_CB_KILL,
+    create_nats_client,
+    make_event,
+    publish_event,
+)
 from fastapi import Depends, FastAPI, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -49,14 +60,69 @@ from circuit_breaker.schemas import (
     ToolCallOut,
 )
 
+logger = logging.getLogger(__name__)
+
 settings = Settings()
+
+nats_nc = None
+sub_tasks: list[asyncio.Task] = []
+
+
+async def handle_slo_breach(msg):
+    try:
+        data = json.loads(msg.data.decode())
+        payload = data.get("payload", {})
+        agent_id = payload.get("agent_id") or data.get("agent_id")
+        if not agent_id:
+            return
+        from circuit_breaker.db import get_db
+        async with get_db() as session:
+            existing = await session.execute(
+                select(Policy).where(
+                    Policy.tenant_id == uuid.UUID(data["tenant_id"]),
+                    Policy.name == f"auto-lockdown-{agent_id}",
+                    Policy.enabled,
+                )
+            )
+            if existing.scalar_one_or_none():
+                return
+            policy = Policy(
+                tenant_id=uuid.UUID(data["tenant_id"]),
+                name=f"auto-lockdown-{agent_id}",
+                description=f"Auto-tightened after SLO breach for {agent_id}",
+                enabled=True,
+                priority=100,
+                policy_type="rate_limit",
+                conditions={"max_calls_per_minute": 5},
+                action="block",
+            )
+            session.add(policy)
+            await session.commit()
+            logger.info("auto-created lockdown policy for %s after SLO breach", agent_id)
+    except Exception:
+        logger.exception("error handling SLO breach in CB")
+
+
+async def subscribe_cross_service():
+    if not nats_nc:
+        return
+    await nats_nc.subscribe("agentops.slo.breach.*", cb=handle_slo_breach)
+    logger.info("CB subscribed to agentops.slo.breach.*")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global nats_nc
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+    nats_nc = await create_nats_client(settings.nats_url)
+    task = asyncio.ensure_future(subscribe_cross_service())
+    sub_tasks.append(task)
     yield
+    for t in sub_tasks:
+        t.cancel()
+    if nats_nc:
+        await nats_nc.close()
     await engine.dispose()
 
 
@@ -97,6 +163,31 @@ async def intercept(
     verdict = result.get("decision", "allow")
     tool_calls_total.labels(verdict=verdict, tool_name=data.tool_name).inc()
     tool_duration_seconds.labels(verdict=verdict, tool_name=data.tool_name).observe(time() - t0)
+
+    topic = TOPIC_CB_INTERCEPT.format(verdict=verdict)
+    await publish_event(
+        nats_nc, make_event("circuit-breaker", topic, tenant.id, {
+            "agent_id": data.agent_id,
+            "tool_name": data.tool_name,
+            "verdict": verdict,
+            "reason": result.get("reason"),
+            "risk_score": result.get("risk_score"),
+            "incident_id": str(result["incident_id"]) if result.get("incident_id") else None,
+        })
+    )
+    if result.get("incident_id"):
+        await publish_event(
+            nats_nc, make_event(
+                "circuit-breaker",
+                TOPIC_CB_INCIDENT.format(severity="warning"),
+                tenant.id,
+                {
+                    "agent_id": data.agent_id,
+                    "incident_id": str(result["incident_id"]),
+                    "tool_name": data.tool_name,
+                },
+            )
+        )
     return result
 
 
@@ -199,6 +290,11 @@ async def activate_kill(
     await session.commit()
     await session.refresh(ks)
     kill_switches_active.labels(agent_id=agent_id, tenant_id=str(tenant.id)).inc()
+    await publish_event(
+        nats_nc, make_event("circuit-breaker", TOPIC_CB_KILL.format(action="activate"), tenant.id, {
+            "agent_id": agent_id, "reason": reason, "ttl": ttl_seconds,
+        })
+    )
     return ks
 
 
@@ -214,6 +310,11 @@ async def release_kill(
     await session.commit()
     await session.refresh(ks)
     kill_switches_active.labels(agent_id=agent_id, tenant_id=str(tenant.id)).set(0)
+    await publish_event(
+        nats_nc, make_event("circuit-breaker", TOPIC_CB_KILL.format(action="release"), tenant.id, {
+            "agent_id": agent_id,
+        })
+    )
     return ks
 
 

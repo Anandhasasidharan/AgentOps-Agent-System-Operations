@@ -26,6 +26,8 @@ jobs:
             module: agent_slo
           - path: agentops-sdk
             module: agentops
+          - path: agentops-events
+            module: agentops_events
     steps:
       - uses: actions/checkout@v4
 
@@ -56,17 +58,19 @@ jobs:
       - name: Install all services
         run: |
           pip install -e agentops-core/
+          pip install -e agentops-events/
           pip install -e agent-circuit-breaker/"[dev]"
           pip install -e agent-chaos-toolkit/"[dev]"
           pip install -e agent-slo-platform/"[dev]"
           pip install -e dashboard/"[dev]"
           pip install -e agentops-sdk/"[dev]"
+          pip install -e agent-gateway/"[dev]"
 
       - name: Ruff
-        run: ruff check agent-circuit-breaker/src agent-chaos-toolkit/src agent-slo-platform/src dashboard/src agentops-sdk/src
+        run: ruff check agentops-events/src agent-gateway/src agent-circuit-breaker/src agent-chaos-toolkit/src agent-slo-platform/src dashboard/src agentops-sdk/src
 
       - name: Black check
-        run: black --check agent-circuit-breaker/src agent-chaos-toolkit/src agent-slo-platform/src dashboard/src agentops-sdk/src
+        run: black --check agentops-events/src agent-gateway/src agent-circuit-breaker/src agent-chaos-toolkit/src agent-slo-platform/src dashboard/src agentops-sdk/src
 
   build:
     name: Build Docker images
@@ -87,7 +91,7 @@ jobs:
 
       - name: Build & push images
         run: |
-          for service in agent-circuit-breaker agent-chaos-toolkit agent-slo-platform dashboard; do
+          for service in agent-circuit-breaker agent-chaos-toolkit agent-slo-platform dashboard agent-gateway; do
             docker build \
               --build-arg SERVICE=$service \
               -t ${{ env.IMAGE_REPOSITORY }}/$service:${{ env.IMAGE_TAG }} \

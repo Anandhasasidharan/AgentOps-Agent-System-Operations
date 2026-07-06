@@ -14,3 +14,7 @@ publish_duration_seconds = Histogram(
     "gw_publish_duration_seconds",
     "Time to publish event to WebSocket clients",
 )
+
+events_dropped_total = Counter(
+    "events_dropped_total", "Events dropped due to failures", ["reason", "service"]
+)

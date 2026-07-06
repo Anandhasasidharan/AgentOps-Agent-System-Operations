@@ -34,6 +34,7 @@ from circuit_breaker.kill_switch import (
 )
 from circuit_breaker.metrics import (
     add_metrics_route,
+    events_dropped_total,
     kill_switches_active,
     policies_total,
     tool_calls_total,
@@ -66,6 +67,13 @@ settings = Settings()
 
 nats_nc = None
 sub_tasks: list[asyncio.Task] = []
+
+
+async def _pub(event: Any):
+    try:
+        await publish_event(nats_nc, event)
+    except Exception:
+        events_dropped_total.labels(reason="publish_failed", service="circuit-breaker").inc()
 
 
 async def handle_slo_breach(msg):
@@ -165,8 +173,8 @@ async def intercept(
     tool_duration_seconds.labels(verdict=verdict, tool_name=data.tool_name).observe(time() - t0)
 
     topic = TOPIC_CB_INTERCEPT.format(verdict=verdict)
-    await publish_event(
-        nats_nc, make_event("circuit-breaker", topic, tenant.id, {
+    await _pub(
+        make_event("circuit-breaker", topic, tenant.id, {
             "agent_id": data.agent_id,
             "tool_name": data.tool_name,
             "verdict": verdict,
@@ -176,8 +184,8 @@ async def intercept(
         })
     )
     if result.get("incident_id"):
-        await publish_event(
-            nats_nc, make_event(
+        await _pub(
+            make_event(
                 "circuit-breaker",
                 TOPIC_CB_INCIDENT.format(severity="warning"),
                 tenant.id,
@@ -290,8 +298,8 @@ async def activate_kill(
     await session.commit()
     await session.refresh(ks)
     kill_switches_active.labels(agent_id=agent_id, tenant_id=str(tenant.id)).inc()
-    await publish_event(
-        nats_nc, make_event("circuit-breaker", TOPIC_CB_KILL.format(action="activate"), tenant.id, {
+    await _pub(
+        make_event("circuit-breaker", TOPIC_CB_KILL.format(action="activate"), tenant.id, {
             "agent_id": agent_id, "reason": reason, "ttl": ttl_seconds,
         })
     )
@@ -310,8 +318,8 @@ async def release_kill(
     await session.commit()
     await session.refresh(ks)
     kill_switches_active.labels(agent_id=agent_id, tenant_id=str(tenant.id)).set(0)
-    await publish_event(
-        nats_nc, make_event("circuit-breaker", TOPIC_CB_KILL.format(action="release"), tenant.id, {
+    await _pub(
+        make_event("circuit-breaker", TOPIC_CB_KILL.format(action="release"), tenant.id, {
             "agent_id": agent_id,
         })
     )

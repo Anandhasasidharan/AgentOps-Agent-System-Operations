@@ -23,6 +23,10 @@ scenarios_total = Gauge(
     "chaos_scenarios_total", "Number of scenarios configured", ["target_type", "tenant_id"]
 )
 
+events_dropped_total = Counter(
+    "events_dropped_total", "Events dropped due to failures", ["reason", "service"]
+)
+
 
 def add_metrics_route(app: FastAPI) -> None:
     @app.get("/metrics")

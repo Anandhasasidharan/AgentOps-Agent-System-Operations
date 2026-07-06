@@ -7,6 +7,7 @@ import json
 import logging
 import uuid
 from contextlib import asynccontextmanager
+from typing import Any
 
 from agentops_core.auth import make_get_tenant
 from agentops_events import TOPIC_CHAOS_EXPERIMENT, create_nats_client, make_event, publish_event
@@ -19,6 +20,7 @@ from chaos_toolkit.db import engine, get_db
 from chaos_toolkit.injector import evaluate_experiment_result, run_batch, run_experiment
 from chaos_toolkit.metrics import (
     add_metrics_route,
+    events_dropped_total,
     experiments_total,
     resilience_score,
     scenarios_total,
@@ -44,6 +46,13 @@ settings = Settings()
 
 nats_nc = None
 sub_tasks: list[asyncio.Task] = []
+
+
+async def _pub(event: Any):
+    try:
+        await publish_event(nats_nc, event)
+    except Exception:
+        events_dropped_total.labels(reason="publish_failed", service="chaos-toolkit").inc()
 
 
 async def handle_cb_incident(msg):
@@ -202,8 +211,8 @@ async def create_experiment(
     await session.commit()
     status = experiment.status or "unknown"
     experiments_total.labels(status=status, target_type=scenario.target_type).inc()
-    await publish_event(
-        nats_nc, make_event(
+    await _pub(
+        make_event(
             "chaos-toolkit",
             TOPIC_CHAOS_EXPERIMENT.format(
                 status="completed" if status == "completed" else "failed"

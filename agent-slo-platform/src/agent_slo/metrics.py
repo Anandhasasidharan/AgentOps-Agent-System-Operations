@@ -20,6 +20,10 @@ slo_alerts_total = Counter("slo_alerts_total", "Alerts fired", ["severity", "slo
 
 otel_spans_ingested_total = Counter("slo_otel_spans_ingested_total", "OTel spans ingested")
 
+events_dropped_total = Counter(
+    "events_dropped_total", "Events dropped due to failures", ["reason", "service"]
+)
+
 
 def add_metrics_route(app: FastAPI) -> None:
     @app.get("/metrics")

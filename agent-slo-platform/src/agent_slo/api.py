@@ -6,7 +6,7 @@ import uuid
 from contextlib import asynccontextmanager
 from typing import Any
 
-from agentops_core.auth import make_get_tenant
+from agentops_core.auth import generate_api_key, make_get_tenant
 from agentops_core.base import Tenant
 from agentops_events import (
     TOPIC_SLO_ALERT,
@@ -27,6 +27,7 @@ from agent_slo.db import engine, get_db
 from agent_slo.engine import evaluate_all_slos
 from agent_slo.metrics import (
     add_metrics_route,
+    events_dropped_total,
     otel_spans_ingested_total,
     sli_requests_total,
     slo_alerts_total,
@@ -49,6 +50,7 @@ from agent_slo.schemas import (
     AgentOut,
     AlertOut,
     ComplianceReport,
+    KeyRotateResponse,
     SLICreate,
     SLIOut,
     SLOCreate,
@@ -61,6 +63,13 @@ from agent_slo.schemas import (
 settings = Settings()
 
 nats_nc = None
+
+
+async def _pub(event: Any):
+    try:
+        await publish_event(nats_nc, event)
+    except Exception:
+        events_dropped_total.labels(reason="publish_failed", service="slo-platform").inc()
 
 
 @asynccontextmanager
@@ -91,11 +100,27 @@ async def create_tenant(
     data: TenantCreate,
     session: AsyncSession = Depends(get_db),
 ) -> Tenant:
-    tenant = Tenant(slug=data.slug, name=data.name)
+    raw_key, key_hash = generate_api_key(data.slug)
+    tenant = Tenant(slug=data.slug, name=data.name, api_key_hash=key_hash)
     session.add(tenant)
     await session.commit()
     await session.refresh(tenant)
-    return tenant
+    return TenantOut(
+        id=tenant.id, slug=tenant.slug, name=tenant.name,
+        api_key=raw_key, created_at=tenant.created_at,
+    )
+
+
+@app.post("/api/v1/keys/rotate", response_model=KeyRotateResponse)
+async def rotate_key(
+    tenant: Tenant = Depends(get_tenant),
+    session: AsyncSession = Depends(get_db),
+) -> dict:
+    new_raw, new_hash = generate_api_key(tenant.slug)
+    tenant.api_key_hash = new_hash
+    session.add(tenant)
+    await session.commit()
+    return {"api_key": new_raw, "tenant_id": tenant.id}
 
 
 @app.get("/api/v1/tenants/me", response_model=TenantOut)
@@ -230,8 +255,8 @@ async def status(
         slo_breaching.labels(slo_name=slo_name).set(1 if s["is_breaching"] else 0)
         if severity:
             slo_alerts_total.labels(severity=severity, slo_name=slo_name).inc()
-            await publish_event(
-                nats_nc, make_event(
+            await _pub(
+                make_event(
                     "slo-platform",
                     TOPIC_SLO_ALERT.format(severity=severity),
                     tenant.id,
@@ -246,8 +271,8 @@ async def status(
                 )
             )
         if s.get("is_breaching"):
-            await publish_event(
-                nats_nc, make_event(
+            await _pub(
+                make_event(
                     "slo-platform",
                     TOPIC_SLO_BREACH.format(window=s["window"]),
                     tenant.id,

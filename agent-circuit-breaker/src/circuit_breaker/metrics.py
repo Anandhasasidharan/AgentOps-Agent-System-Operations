@@ -23,6 +23,10 @@ kill_switches_active = Gauge(
 
 incidents_total = Counter("cb_incidents_total", "Incidents created", ["severity", "category"])
 
+events_dropped_total = Counter(
+    "events_dropped_total", "Events dropped due to failures", ["reason", "service"]
+)
+
 
 def add_metrics_route(app: FastAPI) -> None:
     @app.get("/metrics")

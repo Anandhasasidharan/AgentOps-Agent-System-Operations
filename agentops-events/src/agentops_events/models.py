@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime, timezone
+
 from pydantic import BaseModel
 
 TOPIC_CB_INTERCEPT = "agentops.cb.intercept.{verdict}"

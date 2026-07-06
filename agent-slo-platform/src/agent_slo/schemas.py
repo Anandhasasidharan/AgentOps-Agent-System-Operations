@@ -19,7 +19,13 @@ class TenantOut(BaseModel):
     id: uuid.UUID
     slug: str
     name: str
+    api_key: str | None = None
     created_at: datetime
+
+
+class KeyRotateResponse(BaseModel):
+    api_key: str
+    tenant_id: uuid.UUID
 
 
 class AgentCreate(BaseModel):

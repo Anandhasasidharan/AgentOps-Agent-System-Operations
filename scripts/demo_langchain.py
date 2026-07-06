@@ -36,12 +36,16 @@ async def check_health() -> dict:
 async def setup_tenant() -> str:
     import httpx
 
+    global API_KEY
     async with httpx.AsyncClient() as c:
         r = await c.post(
             f"{SLO_URL}/api/v1/tenants",
-            json={"slug": API_KEY, "name": "Demo Tenant"},
+            json={"slug": API_KEY.split(":")[0] if ":" in API_KEY else API_KEY, "name": "Demo Tenant"},
         )
         if r.status_code == 201:
+            data = r.json()
+            if data.get("api_key"):
+                API_KEY = data["api_key"]
             print("  tenant created")
         elif r.status_code == 409:
             print("  tenant already exists")

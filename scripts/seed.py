@@ -23,6 +23,7 @@ CB_URL = os.getenv("CB_URL", "http://localhost:8001")
 CHAOS_URL = os.getenv("CHAOS_URL", "http://localhost:8002")
 SLO_URL = os.getenv("SLO_URL", "http://localhost:8000")
 API_KEY = os.getenv("API_KEY", "dev-api-key")
+GATEWAY_URL = os.getenv("GATEWAY_URL", "http://localhost:8004")
 
 HEADERS = {"X-API-Key": API_KEY, "Content-Type": "application/json"}
 PASS = "✓"
@@ -53,6 +54,7 @@ def get(url: str, headers: dict | None = None) -> httpx.Response:
 
 
 def main() -> int:
+    global API_KEY
     print("\n=== AgentOps — Seed Demo Data ===\n")
 
     # 1. Wait for all services
@@ -70,12 +72,16 @@ def main() -> int:
     # 2. Create tenant (unauthenticated)
     print("Creating tenant...")
     r = post(f"{SLO_URL}/api/v1/tenants",
-             json={"slug": API_KEY, "name": "Acme Corp"},
+             json={"slug": API_KEY.split(":")[0], "name": "Acme Corp"},
              headers={"Content-Type": "application/json"})
-    if r.status_code == 200:
-        print(f"  {PASS} Tenant '{API_KEY}' created")
+    if r.status_code == 201:
+        data = r.json()
+        if data.get("api_key"):
+            API_KEY = data["api_key"]
+            HEADERS["X-API-Key"] = API_KEY
+        print(f"  {PASS} Tenant '{API_KEY.split(':')[0]}' created (key: {API_KEY[:20]}...)")
     elif r.status_code == 409:
-        print(f"  {PASS} Tenant '{API_KEY}' already exists")
+        print(f"  {PASS} Tenant '{API_KEY.split(':')[0]}' already exists")
     else:
         print(f"  {FAIL} Create tenant: {r.status_code} {r.text[:200]}")
         return 1

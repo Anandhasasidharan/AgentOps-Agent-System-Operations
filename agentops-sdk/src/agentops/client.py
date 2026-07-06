@@ -37,7 +37,11 @@ class AgentOpsSDK:
             headers={"Content-Type": "application/json"},
         )
         r.raise_for_status()
-        return r.json()
+        data = r.json()
+        if raw_key := data.get("api_key"):
+            self._headers["X-API-Key"] = raw_key
+            self._client.headers.update({"X-API-Key": raw_key})
+        return data
 
     # ─── Circuit Breaker ──────────────────────────────────────────────────────
 

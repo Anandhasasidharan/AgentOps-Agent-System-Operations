@@ -18,6 +18,7 @@ CB_URL = os.getenv("CB_URL", "http://localhost:8001")
 CHAOS_URL = os.getenv("CHAOS_URL", "http://localhost:8002")
 SLO_URL = os.getenv("SLO_URL", "http://localhost:8000")
 GATEWAY_URL = os.getenv("GATEWAY_URL", "http://localhost:8004")
+API_KEY = os.getenv("API_KEY", "")
 
 _client: httpx.AsyncClient | None = None
 
@@ -42,8 +43,9 @@ async def health() -> dict[str, str]:
 
 @app.get("/events")
 async def proxy_events():
+    headers = {"X-API-Key": API_KEY} if API_KEY else {}
     try:
-        r = await _client.get(f"{GATEWAY_URL}/api/v1/events")
+        r = await _client.get(f"{GATEWAY_URL}/api/v1/events", headers=headers)
         return r.json()
     except Exception:
         return []
@@ -69,6 +71,8 @@ async def index() -> str:
     chaos = await _check(CHAOS_URL, "chaos-toolkit")
     slo = await _check(SLO_URL, "slo-platform")
     ws_url = GATEWAY_URL.replace("http://", "ws://").replace("https://", "wss://") + "/ws"
+    if API_KEY:
+        ws_url += f"?api_key={API_KEY}"
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="utf-8"><title>AgentOps Dashboard</title>

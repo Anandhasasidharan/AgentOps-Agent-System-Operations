@@ -38,6 +38,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -e agentops-core/
+          pip install -e agentops-events/
           pip install -e ${{ matrix.service.path }}/
           pip install -e ${{ matrix.service.path }}/"[dev]"
 

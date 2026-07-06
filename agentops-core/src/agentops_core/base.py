@@ -4,9 +4,8 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import JSON, String
+from sqlalchemy import JSON, String, Uuid
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-from sqlalchemy import Uuid
 
 
 def now_utc() -> datetime:

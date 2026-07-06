@@ -1,4 +1,4 @@
-from agentops_core.base import Base, Tenant, UUIDMixin, TimestampMixin, now_utc
+from agentops_core.base import Base, Tenant, TimestampMixin, UUIDMixin, now_utc
 from agentops_core.config import AgentOpsSettings
 
 __all__ = [

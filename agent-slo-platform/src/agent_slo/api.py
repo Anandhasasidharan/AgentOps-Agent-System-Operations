@@ -108,8 +108,11 @@ async def create_tenant(
     await session.commit()
     await session.refresh(tenant)
     return TenantOut(
-        id=tenant.id, slug=tenant.slug, name=tenant.name,
-        api_key=raw_key, created_at=tenant.created_at,
+        id=tenant.id,
+        slug=tenant.slug,
+        name=tenant.name,
+        api_key=raw_key,
+        created_at=tenant.created_at,
     )
 
 

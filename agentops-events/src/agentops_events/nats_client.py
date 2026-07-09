@@ -48,9 +48,7 @@ async def publish_event(
             last_exc = exc
             if attempt < max_retries:
                 await asyncio.sleep(base_delay * (2**attempt))
-    logger.exception(
-        "failed to publish event %s after %d retries", event.event_type, max_retries
-    )
+    logger.exception("failed to publish event %s after %d retries", event.event_type, max_retries)
     raise last_exc  # type: ignore
 
 

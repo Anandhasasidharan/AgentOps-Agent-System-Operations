@@ -124,9 +124,9 @@ async def _build_context(
 
 
 def _build_prompt(context: dict[str, Any]) -> str:
-    existing_modes_str = ", ".join(
-        f"{t}/{m}" for t, m in context.get("existing_modes", [])
-    ) or "none"
+    existing_modes_str = (
+        ", ".join(f"{t}/{m}" for t, m in context.get("existing_modes", [])) or "none"
+    )
 
     header = (
         f"Agent: {context['agent_id']}\n"
@@ -166,9 +166,9 @@ async def refine_proposals(
         else:
             failed_modes.append(label)
 
-    existing_modes_str = ", ".join(
-        f"{t}/{m}" for t, m in context.get("existing_modes", [])
-    ) or "none"
+    existing_modes_str = (
+        ", ".join(f"{t}/{m}" for t, m in context.get("existing_modes", [])) or "none"
+    )
 
     prompt = (
         f"Agent: {agent_id}\n"

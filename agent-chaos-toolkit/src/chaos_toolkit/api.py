@@ -69,6 +69,7 @@ async def handle_cb_incident(msg):
         if not agent_id or not tenant_id:
             return
         from chaos_toolkit.db import get_db
+
         async with get_db() as session:
             stmt = select(Scenario).where(
                 Scenario.tenant_id == uuid.UUID(tenant_id),
@@ -78,14 +79,18 @@ async def handle_cb_incident(msg):
             scenarios = list(result.scalars().all())
             for sc in scenarios[:3]:
                 exp = await run_experiment(
-                    session, uuid.UUID(tenant_id), sc.id, agent_id,
+                    session,
+                    uuid.UUID(tenant_id),
+                    sc.id,
+                    agent_id,
                     tenant_slug=None,
                 )
                 await evaluate_experiment_result(exp, sc.expected_behavior)
             await session.commit()
             logger.info(
                 "ran %d experiments after CB incident for %s",
-                min(len(scenarios), 3), agent_id,
+                min(len(scenarios), 3),
+                agent_id,
             )
     except Exception:
         logger.exception("error handling CB incident in Chaos")
@@ -200,9 +205,7 @@ async def propose(
     session: AsyncSession = Depends(get_db),
 ) -> ProposeResponse:
     proposals = await propose_scenarios(session, tenant.id, data.agent_id, data.model)
-    return ProposeResponse(
-        proposals=[ProposedScenario(**p) for p in proposals]
-    )
+    return ProposeResponse(proposals=[ProposedScenario(**p) for p in proposals])
 
 
 @app.post("/api/v1/scenarios/refine", response_model=ProposeResponse)
@@ -212,9 +215,7 @@ async def refine(
     session: AsyncSession = Depends(get_db),
 ) -> ProposeResponse:
     proposals = await refine_proposals(session, tenant.id, data.agent_id or "", data.model)
-    return ProposeResponse(
-        proposals=[ProposedScenario(**p) for p in proposals]
-    )
+    return ProposeResponse(proposals=[ProposedScenario(**p) for p in proposals])
 
 
 # ─── Experiments ──────────────────────────────────────────────────────────────

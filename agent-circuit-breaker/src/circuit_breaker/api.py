@@ -87,6 +87,7 @@ async def handle_slo_breach(msg):
         if not agent_id:
             return
         from circuit_breaker.db import get_db
+
         async with get_db() as session:
             existing = await session.execute(
                 select(Policy).where(
@@ -178,14 +179,19 @@ async def intercept(
 
     topic = TOPIC_CB_INTERCEPT.format(verdict=verdict)
     await _pub(
-        make_event("circuit-breaker", topic, tenant.id, {
-            "agent_id": data.agent_id,
-            "tool_name": data.tool_name,
-            "verdict": verdict,
-            "reason": result.get("reason"),
-            "risk_score": result.get("risk_score"),
-            "incident_id": str(result["incident_id"]) if result.get("incident_id") else None,
-        })
+        make_event(
+            "circuit-breaker",
+            topic,
+            tenant.id,
+            {
+                "agent_id": data.agent_id,
+                "tool_name": data.tool_name,
+                "verdict": verdict,
+                "reason": result.get("reason"),
+                "risk_score": result.get("risk_score"),
+                "incident_id": str(result["incident_id"]) if result.get("incident_id") else None,
+            },
+        )
     )
     if result.get("incident_id"):
         await _pub(
@@ -334,9 +340,16 @@ async def activate_kill(
     await session.refresh(ks)
     kill_switches_active.labels(agent_id=agent_id, tenant_id=str(tenant.id)).inc()
     await _pub(
-        make_event("circuit-breaker", TOPIC_CB_KILL.format(action="activate"), tenant.id, {
-            "agent_id": agent_id, "reason": reason, "ttl": ttl_seconds,
-        })
+        make_event(
+            "circuit-breaker",
+            TOPIC_CB_KILL.format(action="activate"),
+            tenant.id,
+            {
+                "agent_id": agent_id,
+                "reason": reason,
+                "ttl": ttl_seconds,
+            },
+        )
     )
     return ks
 
@@ -354,9 +367,14 @@ async def release_kill(
     await session.refresh(ks)
     kill_switches_active.labels(agent_id=agent_id, tenant_id=str(tenant.id)).set(0)
     await _pub(
-        make_event("circuit-breaker", TOPIC_CB_KILL.format(action="release"), tenant.id, {
-            "agent_id": agent_id,
-        })
+        make_event(
+            "circuit-breaker",
+            TOPIC_CB_KILL.format(action="release"),
+            tenant.id,
+            {
+                "agent_id": agent_id,
+            },
+        )
     )
     return ks
 

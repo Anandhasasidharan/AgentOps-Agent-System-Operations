@@ -117,9 +117,7 @@ async def get_events(since: str | None = None, x_api_key: str | None = None):
         try:
             since_dt = datetime.fromisoformat(since)
         except ValueError:
-            return JSONResponse(
-                {"error": "invalid since format, use ISO 8601"}, status_code=400
-            )
+            return JSONResponse({"error": "invalid since format, use ISO 8601"}, status_code=400)
         result = [e for e in event_buffer if e["timestamp"] >= since_dt.isoformat()]
     else:
         result = list(event_buffer)

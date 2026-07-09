@@ -189,19 +189,27 @@ async def _derive_metrics(
         if "prompt_tokens" in metrics_map and "prompt_tokens" in slis:
             metrics.append(
                 Metric(
-                    tenant_id=tenant_id, agent_id=span.agent_id,
+                    tenant_id=tenant_id,
+                    agent_id=span.agent_id,
                     sli_id=slis["prompt_tokens"].id,
-                    timestamp=span.end_time, value=metrics_map["prompt_tokens"], count=1,
-                    window_start=window_start, window_end=window_end,
+                    timestamp=span.end_time,
+                    value=metrics_map["prompt_tokens"],
+                    count=1,
+                    window_start=window_start,
+                    window_end=window_end,
                 )
             )
         if "completion_tokens" in metrics_map and "completion_tokens" in slis:
             metrics.append(
                 Metric(
-                    tenant_id=tenant_id, agent_id=span.agent_id,
+                    tenant_id=tenant_id,
+                    agent_id=span.agent_id,
                     sli_id=slis["completion_tokens"].id,
-                    timestamp=span.end_time, value=metrics_map["completion_tokens"], count=1,
-                    window_start=window_start, window_end=window_end,
+                    timestamp=span.end_time,
+                    value=metrics_map["completion_tokens"],
+                    count=1,
+                    window_start=window_start,
+                    window_end=window_end,
                 )
             )
 
@@ -209,10 +217,14 @@ async def _derive_metrics(
         if "trust_score" in metrics_map and "trust_score" in slis:
             metrics.append(
                 Metric(
-                    tenant_id=tenant_id, agent_id=span.agent_id,
+                    tenant_id=tenant_id,
+                    agent_id=span.agent_id,
                     sli_id=slis["trust_score"].id,
-                    timestamp=span.end_time, value=metrics_map["trust_score"], count=1,
-                    window_start=window_start, window_end=window_end,
+                    timestamp=span.end_time,
+                    value=metrics_map["trust_score"],
+                    count=1,
+                    window_start=window_start,
+                    window_end=window_end,
                 )
             )
 

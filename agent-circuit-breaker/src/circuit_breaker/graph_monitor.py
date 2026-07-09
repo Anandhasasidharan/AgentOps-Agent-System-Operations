@@ -9,11 +9,9 @@ from typing import Any
 class ExecutionGraph:
     def __init__(self, window_seconds: int = 3600):
         self.window_seconds = window_seconds
-        self._agent_tool: dict[str, dict[str, list[float]]] = (
-            defaultdict(lambda: defaultdict(list))
-        )
-        self._agent_agent: dict[str, dict[str, list[float]]] = (
-            defaultdict(lambda: defaultdict(list))
+        self._agent_tool: dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
+        self._agent_agent: dict[str, dict[str, list[float]]] = defaultdict(
+            lambda: defaultdict(list)
         )
 
     def record_edge(
@@ -40,10 +38,7 @@ class ExecutionGraph:
 
         values = list(counts.values())
         mean = sum(values) / len(values)
-        variance = (
-            sum((v - mean) ** 2 for v in values) / len(values)
-            if len(values) > 1 else 1.0
-        )
+        variance = sum((v - mean) ** 2 for v in values) / len(values) if len(values) > 1 else 1.0
         std = math.sqrt(variance) or 1.0
 
         current = counts[tool_name]
@@ -73,17 +68,21 @@ class ExecutionGraph:
             values = list(counts.values())
             mean = sum(values) / len(values)
             variance = (
-                sum((v - mean) ** 2 for v in values) / len(values)
-                if len(values) > 1 else 1.0
+                sum((v - mean) ** 2 for v in values) / len(values) if len(values) > 1 else 1.0
             )
             std = math.sqrt(variance) or 1.0
             for tool, count in counts.items():
                 z = (count - mean) / std
                 if z > 2.0:
-                    results.append({
-                        "agent": agent, "tool": tool, "count": count,
-                        "z_score": round(z, 3), "mean": round(mean, 3),
-                    })
+                    results.append(
+                        {
+                            "agent": agent,
+                            "tool": tool,
+                            "count": count,
+                            "z_score": round(z, 3),
+                            "mean": round(mean, 3),
+                        }
+                    )
         return results
 
     def _prune(self, agent_id: str) -> None:

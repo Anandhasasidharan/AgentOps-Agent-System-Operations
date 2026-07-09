@@ -19,6 +19,7 @@ import numpy as np
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from circuit_breaker.graph_monitor import get_graph
 from circuit_breaker.models import ToolCall
 
 
@@ -55,8 +56,12 @@ async def compute_anomaly_score(
     scores["timing"] = timing_score
     details["timing_score"] = timing_score
 
+    graph_score = get_graph().get_anomaly_score(agent_id, tool_call.tool_name)
+    scores["graph"] = graph_score
+    details["graph_score"] = graph_score
+
     # Weighted composite score (0-1)
-    weights = {"frequency": 0.30, "entropy": 0.25, "reasoning_loop": 0.30, "timing": 0.15}
+    weights = {"frequency": 0.25, "entropy": 0.20, "reasoning_loop": 0.25, "timing": 0.10, "graph": 0.20}
     composite = sum(weights[k] * min(scores.get(k, 0), 1.0) for k in weights)
     details["composite_score"] = composite
     details["component_scores"] = scores

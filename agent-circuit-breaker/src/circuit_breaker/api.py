@@ -49,6 +49,7 @@ from circuit_breaker.models import (
     Policy,
     ToolCall,
 )
+from circuit_breaker.graph_monitor import get_graph
 from circuit_breaker.predictor import get_prediction
 from circuit_breaker.proxy import intercept_tool_call
 from circuit_breaker.rollback_engine import execute_rollback
@@ -214,6 +215,23 @@ async def predict(
     session: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     return await get_prediction(session, tenant.id, agent_id, current_tool, steps)
+
+
+# ─── Graph ─────────────────────────────────────────────────────────────────────
+
+
+@app.get("/api/v1/graph/status")
+async def graph_status(
+    tenant=Depends(get_tenant),
+) -> dict[str, Any]:
+    return get_graph().status()
+
+
+@app.get("/api/v1/graph/anomalies")
+async def graph_anomalies(
+    tenant=Depends(get_tenant),
+) -> list[dict[str, Any]]:
+    return get_graph().anomalies()
 
 
 # ─── Policies ──────────────────────────────────────────────────────────────────

@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from circuit_breaker.anomaly_engine import compute_anomaly_score
 from circuit_breaker.config import Settings
+from circuit_breaker.graph_monitor import get_graph
 from circuit_breaker.incident_engine import create_incident
 from circuit_breaker.kill_switch import check_kill_switch
 from circuit_breaker.models import ToolCall
@@ -40,6 +41,9 @@ async def intercept_tool_call(
     tenant_slug: str | None = None,
 ) -> dict[str, Any]:
     ts = datetime.now(timezone.utc)
+
+    # 0. Record graph edge
+    get_graph().record_edge(agent_id, tool_name)
 
     tool_call = ToolCall(
         tenant_id=tenant_id,

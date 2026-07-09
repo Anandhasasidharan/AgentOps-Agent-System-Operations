@@ -38,6 +38,14 @@ pip install -e agent-circuit-breaker/"[dev]"
 - Gateway validates keys by calling SLO's `/api/v1/tenants/me`
 - Dashboard passes `API_KEY` env var to gateway WebSocket as `?api_key=` query param
 
+## Rate limiting
+- Per-tenant in-memory sliding window (60s) in `agentops_core.rate_limiter`
+- Configurable via `RATE_LIMIT_RPM` env var (default 60 req/min/tenant)
+- `/health` and `/metrics` paths bypass the rate limiter
+- Applied to CB, Chaos, SLO (services that depend on agentops-core)
+- Gateway not rate-limited (no agentops-core dependency, optional auth)
+- Zero RPM = disabled (set `RATE_LIMIT_RPM=0` in tests if needed)
+
 ## Events & NATS
 - `agentops-events` package: event models, 6 NATS topics, `publish_event()` with retry
 - Topic constants must be imported from package root (`from agentops_events import TOPIC_CB_INCIDENT`), not from `models` submodule

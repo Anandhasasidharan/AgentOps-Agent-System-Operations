@@ -19,6 +19,7 @@ from circuit_breaker.incident_engine import create_incident
 from circuit_breaker.kill_switch import check_kill_switch
 from circuit_breaker.models import ToolCall
 from circuit_breaker.policy_engine import PolicyDecision, evaluate_policies, load_policies
+from circuit_breaker.predictor import compute_proactive_risk
 from circuit_breaker.risk_engine import score_tool_call
 from circuit_breaker.state_tracker import update_agent_state
 
@@ -89,6 +90,12 @@ async def intercept_tool_call(
     )
     tool_call.anomaly_score = anomaly_score
     tool_call.is_suspicious = anomaly_score > 0.5
+
+    # 3b. Proactive risk (DTMC)
+    proactive_score = await compute_proactive_risk(session, tenant_id, agent_id, tool_name)
+    if proactive_score > 0:
+        risk_score = risk_score * 0.8 + proactive_score * 0.2
+        tool_call.risk_score = risk_score
 
     # 4. Evaluate policies
     windowed_stats = await _get_windowed_stats(session, tenant_id, agent_id)

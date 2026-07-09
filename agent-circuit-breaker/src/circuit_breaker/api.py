@@ -49,6 +49,7 @@ from circuit_breaker.models import (
     Policy,
     ToolCall,
 )
+from circuit_breaker.predictor import get_prediction
 from circuit_breaker.proxy import intercept_tool_call
 from circuit_breaker.rollback_engine import execute_rollback
 from circuit_breaker.schemas import (
@@ -199,6 +200,20 @@ async def intercept(
             )
         )
     return result
+
+
+# ─── Predict ────────────────────────────────────────────────────────────────────
+
+
+@app.get("/api/v1/predict/{agent_id}")
+async def predict(
+    agent_id: str,
+    current_tool: str | None = Query(None),
+    steps: int = Query(default=5, ge=1, le=20),
+    tenant=Depends(get_tenant),
+    session: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    return await get_prediction(session, tenant.id, agent_id, current_tool, steps)
 
 
 # ─── Policies ──────────────────────────────────────────────────────────────────

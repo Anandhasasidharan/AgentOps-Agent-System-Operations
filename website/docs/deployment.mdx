@@ -1,0 +1,99 @@
+# Deployment
+
+## Docker Compose (Local)
+
+```bash
+# Start all services
+docker compose up -d
+
+# View logs
+docker compose logs -f
+
+# Seed demo data
+pip install httpx
+python scripts/seed.py
+
+# Stop
+docker compose down
+```
+
+## Docker Images
+
+All images hosted on Docker Hub under a single repository:
+
+```
+asd492/agentops
+├── agent-circuit-breaker-latest
+├── agent-chaos-toolkit-latest
+├── agent-slo-platform-latest
+├── dashboard-latest
+└── agent-gateway-latest
+```
+
+### Pull Individual Service
+
+```bash
+docker pull asd492/agentops:agent-circuit-breaker-latest
+docker pull asd492/agentops:agent-chaos-toolkit-latest
+docker pull asd492/agentops:agent-slo-platform-latest
+docker pull asd492/agentops:dashboard-latest
+docker pull asd492/agentops:agent-gateway-latest
+```
+
+## Local Development
+
+```bash
+# Install all services (with dev deps)
+pip install -e agentops-core/
+pip install -e agentops-events/
+pip install -e agent-circuit-breaker/"[dev]"
+pip install -e agent-chaos-toolkit/"[dev]"
+pip install -e agent-slo-platform/"[dev]"
+pip install -e dashboard/"[dev]"
+pip install -e agent-gateway/"[dev]"
+
+# Run individual services
+cd agent-circuit-breaker && uvicorn circuit_breaker.api:app --port 8001 --reload
+cd agent-chaos-toolkit && uvicorn chaos_toolkit.api:app --port 8002 --reload
+cd agent-slo-platform && uvicorn agent_slo.api:app --port 8000 --reload
+cd dashboard && uvicorn dashboard.api:app --port 8003 --reload
+cd agent-gateway && uvicorn gateway.api:app --port 8004 --reload
+```
+
+## Environment Variables
+
+| Variable | Default | Service |
+|----------|---------|---------|
+| `DATABASE_URL` | `postgresql+asyncpg://agentops:agentops@localhost:5432/agentops` | All |
+| `API_KEY` | `dev-api-key` | Auth (tenant slug) |
+| `OTEL_EXPORTER_ENDPOINT` | `http://localhost:8000/v1/traces` | CB, Chaos |
+| `RATE_LIMIT_RPM` | `60` | CB, Chaos, SLO |
+| `CB_URL` | `http://localhost:8001` | Dashboard |
+| `CHAOS_URL` | `http://localhost:8002` | Dashboard |
+| `SLO_URL` | `http://localhost:8000` | Dashboard |
+| `GATEWAY_URL` | `http://localhost:8004` | Dashboard |
+| `LOG_LEVEL` | `info` | All |
+| `NATS_URL` | — | Events (optional) |
+
+## Testing
+
+```bash
+# Run all tests in a service
+cd agent-circuit-breaker && python -m pytest -x
+
+# Run with coverage
+cd agent-circuit-breaker && python -m pytest -x --cov=circuit_breaker --cov-report=term-missing
+
+# Run all services' tests
+make test
+```
+
+All tests use **SQLite in-memory** (`aiosqlite:///:memory:`) — no Postgres needed.
+
+### Test Counts
+
+| Service | Tests | Coverage Target |
+|---------|-------|-----------------|
+| Circuit Breaker | 36 | 75% |
+| Chaos Toolkit | 30 | 70% |
+| SLO Platform | 24 | 80% |

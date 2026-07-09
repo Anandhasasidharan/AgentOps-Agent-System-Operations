@@ -1,0 +1,60 @@
+# OTel GenAI Semantic Conventions
+
+**Standardized GenAI metrics extraction** per OpenTelemetry semantic conventions.
+
+## Overview
+
+The SLO Platform extracts GenAI-specific attributes from OTel spans, following OpenTelemetry semantic conventions for generative AI operations. This enables standardized monitoring of LLM usage, response quality, and alignment metrics.
+
+## Extracted Attributes
+
+### Usage Metrics
+```
+gen_ai.usage.prompt_tokens         — Input token count
+gen_ai.usage.completion_tokens     — Output token count
+gen_ai.usage.total_tokens           — Total tokens consumed
+```
+
+### Response Metadata
+```
+gen_ai.response.id                  — Unique response identifier
+gen_ai.response.model               — Model name (e.g., gpt-4, claude-3)
+gen_ai.response.finish_reasons      — Array of finish reasons (stop, length, content_filter)
+```
+
+### Evaluation Metrics
+```
+gen_ai.eval.trust_score             — Overall alignment trust score (0.0-1.0)
+gen_ai.eval.trust_score.consistency — Response consistency score
+gen_ai.eval.trust_score.factuality  — Factual accuracy score
+gen_ai.eval.trust_score.safety      — Safety compliance score
+gen_ai.eval.trust_score.instruction_following — Instruction adherence score
+```
+
+## Technical Details
+
+### Array Value Handling
+OTLP often uses `arrayValue` for repeated fields (like `finish_reasons`). The extractor handles this with:
+
+- **`arrayValue` flattener** — recursively extracts values from OTLP array fields
+- **`_resolve_any_value()`** — resolves `AnyValue` protobuf-like structures into Python primitives
+- Handles nested arrays, missing fields, and type mismatches without data loss
+
+### Integration
+All attributes are defined in `KNOWN_ATTRIBUTES` within the extractor. They're extracted alongside standard SLI metrics during span ingestion.
+
+## SLI Derivation
+
+In the SLO receiver, extracted GenAI attributes are used to derive new metrics:
+
+| Metric | Source | Method |
+|--------|--------|--------|
+| `total_tokens` | `gen_ai.usage.total_tokens` | Direct mapping |
+| `prompt_tokens` | `gen_ai.usage.prompt_tokens` | Direct mapping |
+| `completion_tokens` | `gen_ai.usage.completion_tokens` | Direct mapping |
+| `trust_score` | `gen_ai.eval.trust_score` | Averaged per agent/sli window |
+
+## Files
+
+- `agent-slo-platform/src/agent_slo/extractor.py` — Known attributes, `arrayValue` handling, `_resolve_any_value()`
+- `agent-slo-platform/src/agent_slo/receiver.py` — Token metrics + trust score metric derivation

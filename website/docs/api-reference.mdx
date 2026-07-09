@@ -1,0 +1,184 @@
+# API Reference
+
+## Circuit Breaker (:8001)
+
+### Intercept
+```bash
+POST /v1/intercept
+Content-Type: application/json
+X-API-Key: <tenant-api-key>
+
+{
+  "agent_id": "onboarding-agent",
+  "tool_name": "delete_file",
+  "tool_input": {"path": "/data/users.csv"},
+  "duration_ms": 150
+}
+```
+
+### DTMC Predict
+```bash
+GET /api/v1/predict?agent_id=demo-agent
+```
+
+### Graph Status
+```bash
+GET /api/v1/graph/status?agent_id=demo-agent
+```
+
+### Graph Anomalies
+```bash
+GET /api/v1/graph/anomalies?agent_id=demo-agent
+```
+
+### Policies
+```bash
+POST /api/v1/policies              # Create
+GET  /api/v1/policies              # List
+GET  /api/v1/policies/{id}         # Get
+DELETE /api/v1/policies/{id}       # Delete
+```
+
+### Kill Switch
+```bash
+POST /api/v1/kill-switch/{agent}/activate
+POST /api/v1/kill-switch/{agent}/release
+GET  /api/v1/kill-switch/{agent}
+```
+
+### Incidents
+```bash
+GET  /api/v1/incidents
+POST /api/v1/incidents/{id}/resolve
+POST /api/v1/incidents/{id}/rollback
+```
+
+### Other
+```bash
+GET  /api/v1/tool-calls
+GET  /api/v1/agents/{id}/status
+GET  /health
+GET  /metrics
+```
+
+## Chaos Toolkit (:8002)
+
+### Experiments
+```bash
+POST /api/v1/experiments              # Run single experiment
+POST /api/v1/experiments/batch        # Run all scenarios
+GET  /api/v1/experiments              # List
+GET  /api/v1/experiments/{id}         # Get
+```
+
+### Scenarios
+```bash
+POST /api/v1/scenarios                # Create
+GET  /api/v1/scenarios                # List
+GET  /api/v1/scenarios/{id}           # Get
+POST /api/v1/scenarios/seed           # Seed built-in
+POST /api/v1/scenarios/propose        # LLM propose
+POST /api/v1/scenarios/refine         # Refine proposed
+```
+
+### Resilience
+```bash
+GET /api/v1/resilience-score
+```
+
+### Reports
+```bash
+POST /api/v1/reports                  # Create CI report
+GET  /api/v1/reports                  # List
+GET  /api/v1/reports/{id}/junit       # JUnit XML
+GET  /api/v1/reports/{id}/github-summary  # GH summary
+```
+
+### Other
+```bash
+GET /health
+GET /metrics
+```
+
+## SLO Platform (:8000)
+
+### Tenants
+```bash
+POST /api/v1/tenants                  # Create
+GET  /api/v1/tenants/me               # Current
+```
+
+### Agents
+```bash
+POST /api/v1/agents                   # Register
+GET  /api/v1/agents                   # List
+```
+
+### SLIs & SLOs
+```bash
+POST /api/v1/slis                     # Create SLI
+GET  /api/v1/slis                     # List SLIs
+POST /api/v1/slos                     # Create SLO
+GET  /api/v1/slos                     # List SLOs
+```
+
+### Status & Alerts
+```bash
+GET /api/v1/status                    # SLO dashboard
+GET /api/v1/alerts                    # List alerts
+POST /api/v1/alerts/{id}/resolve      # Resolve alert
+```
+
+### Compliance
+```bash
+GET /api/v1/compliance/owasp          # OWASP report
+GET /api/v1/compliance/eu-ai-act      # EU AI Act evidence
+```
+
+### Telemetry
+```bash
+POST /v1/traces                       # Ingest OTel spans
+```
+
+### Other
+```bash
+GET /health
+GET /metrics
+```
+
+## Dashboard (:8003)
+```bash
+GET /                                 # UI
+GET /health                           # Health check
+GET /api/health                       # Aggregated health
+```
+
+## Gateway (:8004)
+```bash
+GET /health                           # Health check
+WS  /ws?api_key=<key>                 # WebSocket connection
+```
+
+## Common Response Format
+
+### Success
+```json
+{
+  "status": "ok",
+  "data": { ... }
+}
+```
+
+### Error
+```json
+{
+  "detail": "Error description"
+}
+```
+
+### Rate Limited (429)
+```json
+{
+  "detail": "Rate limit exceeded. Try again in 42 seconds."
+}
+```

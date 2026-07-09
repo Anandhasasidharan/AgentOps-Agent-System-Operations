@@ -1,0 +1,34 @@
+# Dashboard
+
+**Health aggregation UI** for the AgentOps platform. Displays real-time status of all services in a single page.
+
+## Features
+
+- **Health summary** — live status indicators for Circuit Breaker, Chaos Toolkit, SLO Platform, Gateway, and NATS
+- **Status page** — quick overview of service health at a glance
+- **WebSocket integration** — real-time updates via Gateway (NATS bridge)
+
+## How It Works
+
+The dashboard polls or receives WebSocket updates from all backend services, aggregating their `/health` endpoints into a unified view.
+
+## Port
+
+`8003` (default)
+
+## Endpoints
+
+| Method | Route | Purpose |
+|--------|-------|---------|
+| `GET` | `/` | Dashboard UI |
+| `GET` | `/health` | Health check |
+| `GET` | `/api/health` | Aggregated health status |
+
+## Configuration
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `CB_URL` | `http://localhost:8001` | Circuit Breaker URL |
+| `CHAOS_URL` | `http://localhost:8002` | Chaos Toolkit URL |
+| `SLO_URL` | `http://localhost:8000` | SLO Platform URL |
+| `GATEWAY_URL` | `http://localhost:8004` | Gateway URL |

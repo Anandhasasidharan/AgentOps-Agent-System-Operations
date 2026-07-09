@@ -1,0 +1,122 @@
+# Circuit Breaker
+
+**Runtime safety for AI agents.** Intercepts tool calls, detects anomalies, enforces policies, and provides kill switch + rollback.
+
+## Intercept Pipeline
+
+Every tool call flows through a 6-stage pipeline:
+
+```
+Agent Tool Call
+      │
+      ▼
+┌─────────────────────────────────────┐
+│  1. Kill Switch Check               │
+│     └─ killed? → block + incident   │
+│                                     │
+│  2. Risk Scoring                    │
+│     └─ weighted composite:          │
+│        tool_weight × 40%            │
+│        input_risk × 30%             │
+│        failure_rate × 15%           │
+│        cost_rate × 15%              │
+│                                     │
+│  3. Anomaly Detection               │
+│     └─ 4 detectors blended:         │
+│        frequency_Z × 30%            │
+│        tool_entropy × 25%           │
+│        reasoning_loop × 30%         │
+│        timing_Z × 15%               │
+│        graph_factor × 20% (extra)   │
+│                                     │
+│  4. Graph Topology Check            │
+│     └─ execution graph edge weight  │
+│        z-score deviation            │
+│                                     │
+│  5. Policy Evaluation               │
+│     └─ 8 policy types evaluated     │
+│        in priority order            │
+│                                     │
+│  6. State Update                    │
+│     └─ 5-minute windowed counters   │
+│                                     │
+│  7. Return decision                 │
+│     {allowed, decision, ...}        │
+└─────────────────────────────────────┘
+```
+
+## Key Algorithms
+
+### Risk Scoring
+Weighted composite of four factors:
+- **Tool weight**: built-in weights for 16 tool patterns (delete_file=0.95, bash=0.95, execute_sql=0.90, etc.)
+- **Input risk**: pattern-matches tool params against 14 dangerous patterns (`DELETE FROM`, `rm -rf`, `eval(`, base64)
+- **Failure rate**: recent failure history for this agent/tool combination
+- **Cost rate**: token/cost spend rate to prevent budget blowout
+
+### Anomaly Detection
+Four independent detectors combined into a single score:
+- **Frequency Z-score**: std deviations from normal call frequency
+- **Entropy drift**: Shannon entropy shift in tool distribution
+- **Reasoning loop**: consecutive identical tool calls
+- **Timing Z-score**: unusually fast/slow call durations
+- **Graph factor (20%)**: execution graph structural deviation
+
+### Policy Engine
+Priority-ordered evaluation supporting 8 types:
+
+| Type | Description |
+|------|-------------|
+| `tool_allowlist` | Only allow specified tools |
+| `tool_blocklist` | Block specified tools |
+| `rate_limit` | Max calls per time window |
+| `token_budget` | Max token spend per window |
+| `risk_threshold` | Block if risk score > N |
+| `anomaly_threshold` | Block if anomaly score > N |
+| `time_window` | Only allow during certain hours |
+| `reasoning_loop` | Block if N consecutive same-tool calls |
+
+## Rollback Engine
+When an incident is created, rollback can compensate:
+- **Inverse tool map**: `create_file` → `delete_file`, `write_file` → `restore_from_backup`, etc.
+- **State restore**: resets agent's state counters
+- **Cost refund**: logs cost compensation
+
+## 15 API Endpoints
+
+| Method | Route | Purpose |
+|--------|-------|---------|
+| `GET` | `/health` | Health check |
+| `POST` | `/v1/intercept` | Core — intercept a tool call |
+| `GET` | `/api/v1/predict` | DTMC risk prediction |
+| `GET` | `/api/v1/graph/status` | Execution graph status |
+| `GET` | `/api/v1/graph/anomalies` | Graph anomalies |
+| `POST` | `/api/v1/policies` | Create a policy |
+| `GET` | `/api/v1/policies` | List policies |
+| `DELETE` | `/api/v1/policies/{id}` | Delete policy |
+| `GET` | `/api/v1/tool-calls` | Tool call history |
+| `POST` | `/api/v1/kill-switch/{agent}/activate` | Kill an agent |
+| `POST` | `/api/v1/kill-switch/{agent}/release` | Release kill |
+| `GET` | `/api/v1/kill-switch/{agent}` | Kill switch status |
+| `GET` | `/api/v1/incidents` | Active incidents |
+| `POST` | `/api/v1/incidents/{id}/resolve` | Resolve incident |
+| `POST` | `/api/v1/incidents/{id}/rollback` | Execute rollback |
+| `GET` | `/api/v1/agents/{id}/status` | Full agent status |
+
+## CLI (`cbctl`)
+
+```
+cbctl apply <file>       Apply YAML policy definitions
+cbctl status <agent>     Show agent status
+cbctl policies           List all policies
+cbctl kill <agent>       Activate kill switch
+cbctl release <agent>    Release kill switch
+```
+
+## Data Models (6 tables)
+- **Policy** — tenant-scoped rules with type, conditions, action
+- **ToolCall** — every intercepted call with scores and decision
+- **AgentState** — 5-minute windowed counters
+- **Incident** — security/safety events with severity, rollback linkage
+- **RollbackLog** — compensation action audit trail
+- **KillSwitch** — TTL-based agent kill with trigger info

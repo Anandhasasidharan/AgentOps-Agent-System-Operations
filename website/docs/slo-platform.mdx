@@ -1,0 +1,175 @@
+# SLO Platform
+
+**Service Level Objectives for AI agents.** OpenTelemetry-native, multi-tenant, and compliance-aware.
+
+## How It Works
+
+```
+OTel Spans (JSON via POST /v1/traces)
+        │
+        ▼
+┌──────────────────────────────────────────┐
+│  ingest_traces()                          │
+│                                          │
+│  1. parse_otlp_spans()                   │
+│     → convert OTLP JSON to OtelSpan      │
+│                                          │
+│  2. resolve/create Agent                 │
+│     by (tenant, environment, name)       │
+│                                          │
+│  3. _derive_metrics()                    │
+│     for each span:                       │
+│       task_success_ratio                 │
+│       hallucination_rate                 │
+│       tool_accuracy                      │
+│       latency_p99                       │
+│       token_usage                       │
+│       cost_per_task                     │
+│       steps_to_completion               │
+│       trust_score                       │
+│                                          │
+│  4. Return ingest summary                │
+└──────────────────────────────────────────┘
+
+            ▼ (on status request)
+
+┌──────────────────────────────────────────┐
+│  evaluate_all_slos()                      │
+│                                          │
+│  for each SLO:                           │
+│    1. aggregate_sli()                    │
+│    2. evaluate_slo()                     │
+│    3. error_budget math                  │
+│    4. compute_burn_rate()                │
+│    5. evaluate_alerts()                  │
+│                                          │
+│  6. Return status dashboard              │
+└──────────────────────────────────────────┘
+```
+
+## SLI Types (8 derived from spans)
+
+| SLI | Method | Description |
+|-----|--------|-------------|
+| `task_success_rate` | Weighted avg | Ratio of successful task completions |
+| `hallucination_rate` | Weighted avg | Ratio of detected hallucination spans |
+| `tool_accuracy` | Weighted avg | Ratio of correct tool selections |
+| `cost_per_task` | Simple avg | Average cost per completed task |
+| `steps_to_completion` | Simple avg | Average steps to finish task |
+| `latency_p99` | Percentile | 99th percentile response latency |
+| `token_usage` | Simple avg | Average token consumption per task |
+| `trust_score` | Simple avg | Average alignment verification score |
+
+## GenAI Semantic Conventions (Phase E)
+
+Extracts OpenTelemetry GenAI attributes from spans:
+
+```
+gen_ai.usage.prompt_tokens        → token usage breakdown
+gen_ai.usage.completion_tokens
+gen_ai.usage.total_tokens
+gen_ai.response.id                → response metadata
+gen_ai.response.model
+gen_ai.response.finish_reasons
+gen_ai.eval.trust_score           → alignment verification
+gen_ai.eval.trust_score.consistency
+gen_ai.eval.trust_score.factuality
+gen_ai.eval.trust_score.safety
+gen_ai.eval.trust_score.instruction_following
+```
+
+Handles nested `arrayValue` OTLP fields via `arrayValue` flattener and `_resolve_any_value()`.
+
+### Token Metrics
+From extracted GenAI attributes, the receiver derives:
+- `total_tokens` — sum of prompt + completion tokens
+- `prompt_tokens` — input token count
+- `completion_tokens` — output token count
+
+## Trust Score (Phase F)
+
+Integrates **VeriAlign alignment verification** into SLO observability:
+
+```
+VeriAlign Verification Result
+          │
+          ▼
+┌─────────────────────────────┐
+│  emit_genai_span()          │
+│  (VeriAlign proxy)          │
+│                             │
+│  trust_score: 0.89          │
+│  trust_components: {        │
+│    consistency: 0.92,       │
+│    factuality: 0.85,        │
+│    safety: 0.95,            │
+│    instruction: 0.88        │
+│  }                          │
+└─────────────────────────────┘
+          │
+          ▼
+┌─────────────────────────────┐
+│  SLO Platform               │
+│                             │
+│  Extracts gen_ai.eval.      │
+│  trust_score attributes     │
+│                             │
+│  Derives trust_score SLI    │
+│  Evaluates against SLO      │
+│  targets                    │
+└─────────────────────────────┘
+```
+
+## SLO Evaluation
+
+Each SLO defines:
+- **Target**: desired metric value (e.g., `0.99` for 99% success rate)
+- **Comparator**: `gt`, `lt`, `eq`
+- **Window**: evaluation window (e.g., `7d`, `24h`)
+- **Burn rate thresholds**: alert at N (e.g., `[1.0, 5.0, 10.0]`)
+
+**Error budget**: `total = 1 - target`. Burn rate = consumed / elapsed_window_ratio.
+
+### Compliance Reports
+
+**OWASP Agentic AI Top 10**: Maps SLOs to OWASP control categories (ASI07–ASI10). Produces `mitigated` / `partially_mitigated` / `not_mitigated` status.
+
+**EU AI Act Evidence**: Generates compliance evidence scaffold (governance, risk management, transparency logs).
+
+## 15 API Endpoints
+
+| Method | Route | Purpose |
+|--------|-------|---------|
+| `GET` | `/health` | Health check |
+| `POST` | `/api/v1/tenants` | Create tenant |
+| `GET` | `/api/v1/tenants/me` | Get current tenant |
+| `POST` | `/api/v1/agents` | Register agent |
+| `GET` | `/api/v1/agents` | List agents |
+| `POST` | `/api/v1/slis` | Create SLI definition |
+| `GET` | `/api/v1/slis` | List SLIs |
+| `POST` | `/api/v1/slos` | Create SLO |
+| `GET` | `/api/v1/slos` | List SLOs |
+| `GET` | `/api/v1/status` | Core — SLO dashboard |
+| `GET` | `/api/v1/alerts` | List alerts |
+| `POST` | `/api/v1/alerts/{id}/resolve` | Resolve alert |
+| `GET` | `/api/v1/compliance/owasp` | OWASP report |
+| `GET` | `/api/v1/compliance/eu-ai-act` | EU AI Act evidence |
+| `POST` | `/v1/traces` | Core — ingest OTel spans |
+
+## CLI (`sloctl`)
+
+```
+sloctl apply <file>    Apply SLO/RiskBudget YAML definitions
+sloctl status          Print SLO status dashboard
+sloctl report <std>    Generate compliance report (owasp, eu-ai-act)
+```
+
+## Data Models (8 tables)
+- **Tenant** — organization with slug and API key hash
+- **Agent** — registered agent (tenant, environment, framework, model_provider)
+- **SLI** — service level indicator definition
+- **SLO** — objective with target, comparator, window
+- **Metric** — time-series data point derived from spans
+- **ErrorBudget** — budget tracking per SLO period
+- **Alert** — burn-rate alert with severity
+- **OtelSpan** — raw ingested span data

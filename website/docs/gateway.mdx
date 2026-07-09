@@ -1,0 +1,52 @@
+# Gateway
+
+**WebSocket bridge** that connects NATS events to the dashboard in real-time.
+
+## Purpose
+
+The Gateway acts as the real-time communication layer:
+- Subscribes to **NATS topics** (6 event types)
+- Bridges events to **WebSocket clients** (dashboard)
+- Enables live-updating dashboard without polling
+
+## How It Works
+
+```
+NATS Events                    Gateway (port 8004)
+┌──────────┐                  ┌─────────────────────┐
+│ CB       │──────Topic──────→│                     │
+│ Incidents│                  │  WebSocket Server   │
+├──────────┤                  │                     │
+│ SLO      │──────Topic──────→│  • Subscribe to     │
+│ Alerts   │                  │    NATS topics      │
+├──────────┤                  │  • Bridge to WS     │
+│ Chaos    │──────Topic──────→│  • Auth via         │
+│ Results  │                  │    API key param    │
+└──────────┘                  └──────────┬──────────┘
+                                         │
+                                         ▼
+                                  ┌──────────────┐
+                                  │  Dashboard   │
+                                  │  (WebSocket  │
+                                  │   client)    │
+                                  └──────────────┘
+```
+
+## Port
+
+`8004` (default)
+
+## Endpoints
+
+| Method | Route | Purpose |
+|--------|-------|---------|
+| `GET` | `/health` | Health check |
+| `WS` | `/ws` | WebSocket connection (query param: `api_key`) |
+
+## Authentication
+
+The dashboard passes its `API_KEY` env var as a WebSocket query parameter: `ws://gateway:8004/ws?api_key=...`
+
+## NATS Topics
+
+The agentops-events package defines 6 topics for inter-service communication. The Gateway subscribes to all of them to forward events to the dashboard.

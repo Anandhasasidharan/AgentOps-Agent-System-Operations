@@ -1,0 +1,74 @@
+# CI/CD Pipeline
+
+**Automated test → lint → build pipeline** using GitHub Actions.
+
+## Pipeline Overview
+
+```
+Push to main ──→ Test (5-matrix) ──→ Lint ──→ Build & Push Docker
+                                                      │
+                                                      ▼
+                                            Docker Hub: asd492/agentops
+```
+
+## Jobs
+
+### 1. Test (5-matrix)
+Runs `pytest` with coverage across all 5 Python packages:
+
+| Matrix Entry | Path | Module |
+|--------------|------|--------|
+| Circuit Breaker | `agent-circuit-breaker` | `circuit_breaker` |
+| Chaos Toolkit | `agent-chaos-toolkit` | `chaos_toolkit` |
+| SLO Platform | `agent-slo-platform` | `agent_slo` |
+| AgentOps SDK | `agentops-sdk` | `agentops` |
+| AgentOps Events | `agentops-events` | `agentops_events` |
+
+Uses SQLite in-memory — no external database needed.
+
+### 2. Lint
+Runs **ruff** and **black --check** across all 7 source directories.
+
+### 3. Build
+Only on `main` branch. Builds and pushes **5 Docker images**:
+
+```bash
+asd492/agentops:agent-circuit-breaker-{sha}
+asd492/agentops:agent-circuit-breaker-latest
+asd492/agentops:agent-chaos-toolkit-{sha}
+asd492/agentops:agent-chaos-toolkit-latest
+asd492/agentops:agent-slo-platform-{sha}
+asd492/agentops:agent-slo-platform-latest
+asd492/agentops:dashboard-{sha}
+asd492/agentops:dashboard-latest
+asd492/agentops:agent-gateway-{sha}
+asd492/agentops:agent-gateway-latest
+```
+
+## Secrets
+
+| Secret | Used In | Description |
+|--------|---------|-------------|
+| `DOCKER_USERNAME` | Build job | Docker Hub username (`asd492`) |
+| `DOCKER_PASSWORD` | Build job | Docker Hub password/token |
+
+## Docker Configuration
+
+### Single Dockerfile, Multi-Service
+
+The root `Dockerfile` uses `ARG SERVICE` to build any service image:
+
+```dockerfile
+FROM python:3.11-slim
+WORKDIR /app
+COPY agentops-core/ agentops-core/
+COPY agentops-events/ agentops-events/
+RUN pip install -e agentops-core/ && pip install -e agentops-events/
+COPY ${SERVICE}/ ${SERVICE}/
+RUN pip install -e ${SERVICE}/
+CMD ["uvicorn", "${SERVICE}.api:app", "--host", "0.0.0.0", "--port", "8000"]
+```
+
+## Workflow File
+
+`.github/workflows/agentops.yml` — see the full configuration on [GitHub](https://github.com/Anandhasasidharan/AgentOps-Agent-System-Operations/blob/main/.github/workflows/agentops.yml).

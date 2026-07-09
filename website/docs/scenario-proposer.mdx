@@ -1,0 +1,95 @@
+# LLM Scenario Proposer
+
+**Generative scenario discovery** using LLMs to propose and refine novel chaos scenarios.
+
+## Overview
+
+Instead of manually writing all chaos scenarios, the Scenario Proposer uses an LLM to **generatively discover new failure scenarios** based on agent traces, tenant configuration, and past experiment results.
+
+## Phase C — Propose
+
+```
+POST /api/v1/scenarios/propose
+
+Input (ProposeRequest):
+  • agent_id: str
+  • n_scenarios: int (default: 3)
+  • temperature: float (default: 0.7)
+  • recent_traces: List[ToolCallTrace]
+  • tenant_config: dict (optional)
+  • past_results: List[ExperimentResult] (optional)
+
+Pipeline:
+  1. _build_context(recent_traces, tenant_config, past_results)
+     → Formatted context string with tool usage patterns,
+       existing scenarios, and past failures
+
+  2. _build_prompt(context, n_scenarios, temperature)
+     → Structured prompt with:
+       • System role: expert chaos engineer
+       • Context: agent behavior, existing coverage
+       • Task: propose N novel scenarios
+       • Format: JSON array with target/failure_mode/config
+
+  3. _call_llm(prompt, temperature)
+     → Async HTTP POST to LLM provider (model-agnostic)
+     → Parses JSON response
+
+Output (ProposeResponse):
+  • scenarios: List[ProposedScenario]
+  • model: str
+  • usage: {prompt_tokens, completion_tokens, total_tokens}
+```
+
+### Example Output
+
+```json
+{
+  "scenarios": [
+    {
+      "name": "LLM Gradual Context Poisoning",
+      "target": "llm",
+      "failure_mode": "hallucination",
+      "config": {
+        "poison_probability": 0.3,
+        "poison_field": "context_window",
+        "escalation": "gradual"
+      },
+      "expected_behavior": "Agent detects confidence drop and requests clarification",
+      "rationale": "Agent frequently uses full context window; gradual poisoning tests early warning systems"
+    }
+  ]
+}
+```
+
+## Phase D — Closed-Loop Refine
+
+```
+POST /api/v1/scenarios/refine
+
+Pipeline:
+  1. Take proposed scenarios as input
+  2. LLM critiques each scenario on:
+     • Feasibility — can this actually be simulated?
+     • Coverage — does it test something new?
+     • Edge cases — are edge conditions handled?
+  3. Produce refined YAML-ready scenario definitions
+  4. Optionally iterate: refine → critique → refine
+
+Output: Enhanced ProposedScenario[] with production-ready configs
+```
+
+## Configuration
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `n_scenarios` | 3 | Number of scenarios to propose per call |
+| `temperature` | 0.7 | LLM generation temperature |
+| `LLM_API_URL` | — | LLM provider endpoint |
+| `LLM_API_KEY` | — | LLM provider auth |
+
+## Files
+
+- `agent-chaos-toolkit/src/chaos_toolkit/scenario_proposer.py` — `propose_scenarios()` + `refine_proposals()`
+- `agent-chaos-toolkit/src/chaos_toolkit/schemas.py` — `ProposeRequest`, `ProposeResponse`, `ProposedScenario`
+- `agent-chaos-toolkit/src/chaos_toolkit/api.py` — endpoints `/api/v1/scenarios/propose` and `/api/v1/scenarios/refine`

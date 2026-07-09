@@ -1,0 +1,103 @@
+# Trust Score
+
+**Alignment verification integration** — bridges VeriAlign trust scoring into the AgentOps observability pipeline.
+
+## Overview
+
+Trust scores from **VeriAlign** (an external alignment verification system) are injected into OpenTelemetry spans and extracted by the SLO Platform for unified monitoring alongside traditional performance SLIs.
+
+## Data Flow
+
+```
+┌──────────────────────┐     Tool Call      ┌──────────────────────┐
+│    AI Agent          │────────────────────→│  VeriAlign Proxy    │
+│                      │                     │  (otel_genai.py)    │
+│  • Sends tool call   │                     │                     │
+│  • Gets response     │                     │  • Captures spans   │
+└──────────────────────┘                     │  • Passes to        │
+                                             │    verialign for    │
+                                             │    verification     │
+                                             └─────────┬───────────┘
+                                                       │
+                                             ┌─────────▼───────────┐
+                                             │  VeriAlign          │
+                                             │  (TrustScorer)      │
+                                             │                     │
+                                             │  • Scores response  │
+                                             │    consistency      │
+                                             │    factuality       │
+                                             │    safety           │
+                                             │    instruction      │
+                                             └─────────┬───────────┘
+                                                       │
+                                             ┌─────────▼───────────┐
+                                             │  emit_genai_span()  │
+                                             │                     │
+                                             │  trust_score: 0.89  │
+                                             │  trust_components   │
+                                             └─────────┬───────────┘
+                                                       │
+                                             ┌─────────▼───────────┐
+                                             │  SLO Platform       │
+                                             │                     │
+                                             │  Extracts           │
+                                             │  gen_ai.eval.*      │
+                                             │  attributes         │
+                                             └─────────────────────┘
+```
+
+## Key Components
+
+### VeriAlign Proxy (`otel_genai.py`)
+- `emit_genai_span()` — accepts `trust_score` and `trust_components` params
+- Builds OTel span with GenAI semantic convention attributes
+- Sends spans to SLO Platform via OTLP HTTP POST
+
+### Trust Scorer (`trust_scorer.py`)
+- `score(span_data)` — evaluates response across 4 dimensions:
+  - **Consistency**: Does the response logically follow from the context?
+  - **Factuality**: Are claims supported by available evidence?
+  - **Safety**: Does the response avoid harmful content?
+  - **Instruction Following**: Did the agent do what was asked?
+- Returns composite score (0.0-1.0) and component breakdown
+
+### VeriAlign Main (`main.py`)
+- Plumbed `verification.trust_score` into spans in both streaming and non-streaming handlers
+- Extracts trust score from verification result and passes to `emit_genai_span()`
+
+### SLO Extractor
+- `KNOWN_ATTRIBUTES` includes `gen_ai.eval.trust_score` + component attributes
+- `extract_sli_metrics()` extracts trust scores during span ingestion
+
+### SLO Receiver
+- Derives `trust_score` metric from span attributes
+- Available for SLO evaluation alongside success rate, latency, etc.
+
+## SLI Integration
+
+Trust score becomes a first-class SLI:
+
+```yaml
+apiVersion: agentops.io/v1
+kind: SLO
+metadata:
+  name: alignment-trust-score
+spec:
+  sli: trust_score
+  target: 0.80
+  comparator: gt
+  window: 7d
+  burnRateAlerts:
+    - threshold: 0.05
+      severity: warning
+    - threshold: 0.15
+      severity: critical
+```
+
+## Files
+
+- `/ALIGMENT/verialign/proxy/otel_genai.py` — `emit_genai_span()` with trust params
+- `/ALIGMENT/verialign/verification/trust_scorer.py` — `TrustScorer.score()`
+- `/ALIGMENT/verialign/proxy/main.py` — plumbed trust score into span
+- `agent-slo-platform/src/agent_slo/extractor.py` — trust score attribute extraction
+- `agent-slo-platform/src/agent_slo/receiver.py` — trust score metric derivation

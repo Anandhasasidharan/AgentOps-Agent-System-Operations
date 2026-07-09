@@ -1,0 +1,93 @@
+# DTMC Predictor
+
+**Discrete-Time Markov Chain with PAC bounds** for proactive risk prediction in agent tool-call sequences.
+
+## Overview
+
+The DTMC predictor models agent behavior as a Markov chain with 5 states, transitioning based on tool-call risk levels. **PAC (Probably Approximately Correct) bounds** provide statistical guarantees on prediction accuracy.
+
+## State Model
+
+```
+                    ┌─────────────────────────────────────┐
+                    │                                     │
+                    ▼                                     │
+        ┌─────────────────────────────────────────────────┴──┐
+        │                    Idle (0)                         │
+        └─────────────────────────────────────────────────┬──┘
+                    │                                     │
+                    ▼                                     │
+        ┌─────────────────────────────────────────────────┴──┐
+        │                Low Risk (1)                         │
+        └─────────────────────────────────────────────────┬──┘
+                    │                                     │
+                    ▼                                     │
+        ┌─────────────────────────────────────────────────┴──┐
+        │              Medium Risk (2)                        │
+        └─────────────────────────────────────────────────┬──┘
+                    │                                     │
+                    ▼                                     │
+        ┌─────────────────────────────────────────────────┴──┐
+        │               High Risk (3)                         │
+        └─────────────────────────────────────────────────┬──┘
+                    │                                     │
+                    ▼                                     │
+        ┌─────────────────────────────────────────────────┴──┐
+        │             Critical (4)                            │
+        └─────────────────────────────────────────────────┬──┘
+                    │                                     │
+                    └─────────────────────────────────────┘
+```
+
+States are defined by **risk thresholds**:
+- **Idle** (0): No tool calls in window
+- **Low** (1): Risk < 0.25
+- **Medium** (2): Risk < 0.50
+- **High** (3): Risk < 0.75
+- **Critical** (4): Risk ≥ 0.75
+
+## Key Components
+
+### DTMC Builder
+Located in `agent-circuit-breaker/src/circuit_breaker/dtmc.py`:
+- `build_dtmc()` — constructs transition matrix from tool-call history
+- `predict_risk()` — predicts next-state risk with N-step lookahead
+- `_collapse_tool()` — maps tool names to state transitions
+
+### PAC Bounds
+Also in `dtmc.py`:
+- `pac_bound()` — computes VC-dimension-based confidence bounds
+- Provides probabilistic guarantee: `P(|predicted - true| ≤ ε) ≥ 1-δ`
+- VC dimension = number of states (5) for finite-state DTMC
+
+### Predictor
+Located in `predictor.py`:
+- `get_prediction()` — returns DTMC risk prediction + PAC bounds
+- `compute_proactive_risk()` — blends DTMC prediction with current risk
+
+## API
+
+| Method | Route | Description |
+|--------|-------|-------------|
+| `GET` | `/api/v1/predict` | Get DTMC risk prediction for an agent |
+
+### Response
+
+```json
+{
+  "agent_id": "demo-agent",
+  "current_state": "medium",
+  "predicted_next_state": "high",
+  "probability": 0.73,
+  "pac_bound": {
+    "epsilon": 0.12,
+    "confidence": 0.95
+  },
+  "predicted_risk": 0.62,
+  "proactive_risk": 0.68
+}
+```
+
+## Integration
+
+The predictor is called from the **proxy intercept pipeline** to blend DTMC-based proactive risk with the current tool-call risk score before policy evaluation.

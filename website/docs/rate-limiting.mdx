@@ -1,0 +1,72 @@
+# Rate Limiting
+
+**Per-tenant in-memory sliding window** rate limiting to protect services from abusive traffic.
+
+## How It Works
+
+Uses a sliding window algorithm in `agentops_core.rate_limiter`:
+
+```
+Request arrives with X-API-Key
+        │
+        ▼
+┌─────────────────────────────────┐
+│  RateLimitMiddleware            │
+│                                 │
+│  1. Extract tenant from API key │
+│  2. Check current window count  │
+│  3. If count < RPM: allow +1    │
+│  4. If count ≥ RPM: 429 Too     │
+│     Many Requests               │
+│                                 │
+│  Window: 60s sliding            │
+│  Keyed by: tenant slug          │
+│  Bypass: /health, /metrics      │
+└─────────────────────────────────┘
+```
+
+## Configuration
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `RATE_LIMIT_RPM` | `60` | Max requests per minute per tenant |
+| `RATE_LIMIT_RPM=0` | disabled | Disable rate limiting entirely |
+
+## Applied To
+
+- **Circuit Breaker** (:8001)
+- **Chaos Toolkit** (:8002)
+- **SLO Platform** (:8000)
+
+## Bypassed Paths
+
+- `/health`
+- `/metrics`
+
+These paths pass through without rate limit checks.
+
+## Not Applied To
+
+- **Gateway** (:8004) — no agentops-core dependency, optional auth
+- **Dashboard** (:8003)
+
+## Code Location
+
+```
+agentops-core/src/agentops_core/
+├── rate_limiter.py    # RateLimitMiddleware, add_rate_limiter(), sliding window
+└── config.py          # rate_limit_rpm: int = 60
+```
+
+Each service applies it in its `api.py`:
+
+```python
+from agentops_core.rate_limiter import add_rate_limiter
+
+app = FastAPI()
+add_rate_limiter(app, config)
+```
+
+## Testing
+
+Set `RATE_LIMIT_RPM=0` in test environments to disable rate limiting during CI.

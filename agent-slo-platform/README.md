@@ -1,30 +1,30 @@
-# Agent SLO Platform
+# SLO Platform
+
+[![CI/CD](https://img.shields.io/github/actions/workflow/status/Anandhasasidharan/AgentOps-Agent-System-Operations/agentops.yml?branch=main&logo=github)](https://github.com/Anandhasasidharan/AgentOps-Agent-System-Operations/actions)
+[![Tests](https://img.shields.io/badge/tests-24%20passing-6C5CE7?logo=pytest)](https://github.com/Anandhasasidharan/AgentOps-Agent-System-Operations/actions)
+[![Coverage](https://img.shields.io/badge/coverage-80%25-22BA5A)](https://github.com/Anandhasasidharan/AgentOps-Agent-System-Operations)
+[![Python](https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python)](https://python.org)
 
 Service Level Objectives for AI agents. OpenTelemetry-native, multi-tenant, and compliance-aware.
+
+**Features:** OTel ingestion · GenAI semantic conventions · Trust score integration · SLO evaluation · Burn-rate math · OWASP/EU AI Act
+
+📖 [Full docs](https://anandhasasidharan.github.io/AgentOps-Agent-System-Operations/slo-platform)
 
 ## Quick Start
 
 ```bash
-cp .env.example .env
-docker compose up -d db
-python -m venv .venv
-source .venv/bin/activate
-python -m pip install -e ".[dev]"
-alembic upgrade head
-pytest
-uvicorn agent_slo.api:app --reload
+pip install -e agentops-core/ && pip install -e ."[dev]"
+uvicorn agent_slo.api:app --port 8000 --reload
 ```
 
 ## Define an SLO
 
 ```yaml
-# example-slo.yaml
 apiVersion: agentops.io/v1
 kind: SLO
 metadata:
   name: task-success-rate
-  tenant: acme-corp
-  environment: production
 spec:
   sli: task_success_rate
   target: 0.95
@@ -33,36 +33,24 @@ spec:
   burnRateAlerts:
     - threshold: 0.02
       severity: info
-    - threshold: 0.10
-      severity: critical
 ```
 
-Apply it:
+Apply it: `sloctl apply -f slo.yaml`
+
+## Key Endpoints
+
+| Endpoint | Description |
+|---|---|
+| `POST /v1/traces` | Ingest OTel spans |
+| `GET /api/v1/status` | SLO dashboard |
+| `GET /api/v1/compliance/owasp` | OWASP report |
+| `GET /api/v1/compliance/eu-ai-act` | EU AI Act evidence |
+
+## Testing
 
 ```bash
-sloctl apply -f example-slo.yaml
+python -m pytest -x --cov=agent_slo --cov-report=term-missing
 ```
-
-Send OpenTelemetry traces:
-
-```bash
-curl -X POST http://localhost:8000/v1/traces \
-  -H "X-API-Key: dev-api-key" \
-  -H "Content-Type: application/json" \
-  -d @example-trace.json
-```
-
-Check status:
-
-```bash
-curl http://localhost:8000/api/v1/status?tenant=acme-corp
-```
-
-## Docs
-
-- [Specification](SPEC.md)
-- [Deployment Guide](docs/deployment.md)
-- [Architecture](docs/architecture.md)
 
 ## License
 

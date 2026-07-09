@@ -1,0 +1,96 @@
+# AgentOps — AI Agent Safety & Observability Platform
+
+**Runtime safety · Resilience testing · SLO compliance · Predictive analytics**
+
+AgentOps is a platform of **5 integrated services** for operating AI agents safely, reliably, and at scale. It combines predictive circuit breaking, chaos engineering, and SLO-based observability into a single unified platform.
+
+## Platform at a Glance
+
+| Service | Port | Purpose | Key Features |
+|---------|------|---------|--------------|
+| **Circuit Breaker** | 8001 | Runtime safety guard | DTMC prediction, graph monitoring, anomaly detection, policy enforcement, kill switch, rollback |
+| **Chaos Toolkit** | 8002 | Pre-prod resilience testing | 16 failure modes, LLM scenario proposer, closed-loop refinement, CI/CD integration |
+| **SLO Platform** | 8000 | Observability & compliance | OTel ingestion, GenAI semantic conventions, trust scoring, OWASP/EU AI Act |
+| **Dashboard** | 8003 | Health aggregation | Real-time status across all services |
+| **Gateway** | 8004 | WebSocket bridge | NATS → dashboard real-time updates |
+
+## Core Architecture
+
+```
+                        ┌──────────────────┐
+                        │   SLO Platform   │
+                        │   (port 8000)    │
+                        │                  │
+                        │  OTel ingestion  │
+                        │  SLO evaluation  │
+                        │  Trust scoring   │
+                        └────────┬─────────┘
+                                 │
+         ┌───────────────────────┼───────────────────────┐
+         │                       │                       │
+         ▼                       ▼                       ▼
+┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐
+│ Circuit Breaker  │  │  Chaos Toolkit   │  │    Dashboard     │
+│ (port 8001)      │  │  (port 8002)     │  │    (port 8003)   │
+│                  │  │                  │  │                  │
+│ DTMC prediction  │  │ Fault injection  │  │ Health summary   │
+│ Graph monitoring │  │ Scenario propose │  │ Status page      │
+│ Policy engine    │  │ Resilience score │  │                  │
+│ Kill switch      │  │ CI/CD reports    │  │                  │
+│ Rollback         │  │                  │  │                  │
+└──────────────────┘  └──────────────────┘  └──────┬───────────┘
+                                                   │
+                                                   ▼
+                                          ┌──────────────────┐
+                                          │    Gateway       │
+                                          │    (port 8004)   │
+                                          │                  │
+                                          │ NATS → WebSocket │
+                                          └──────────────────┘
+```
+
+## What Makes This Different
+
+### Phase A — Predictive Circuit Breaking (DTMC + PAC)
+Models agent tool-call sequences as a **Discrete-Time Markov Chain** with 5 states. **PAC bounds** guarantee prediction accuracy with confidence intervals. Predicts risk *before* the tool executes.
+
+### Phase B — Graph Topology Monitoring
+Builds a directed **execution graph** of tool-use sequences in real-time. **Z-score anomaly detection** flags structural deviations >2σ from baseline. Graph factor blends into anomaly scoring at 20% weight.
+
+### Phase C — LLM-Based Scenario Proposer
+Uses an LLM to **generatively propose novel chaos scenarios** from agent traces, tenant config, and experiment history. Proposes 3-5 scenarios per call with configurable diversity.
+
+### Phase D — Closed-Loop Refinement
+Structured **LLM critique** iterates on proposed scenarios: feasibility check, coverage analysis, edge case identification. Outputs production-ready YAML definitions.
+
+### Phase E — OTel GenAI Semantic Conventions
+Extracts `gen_ai.usage.*`, `gen_ai.response.*`, and `gen_ai.eval.*` attributes per OpenTelemetry standards. Handles nested `arrayValue` OTLP fields. Derives prompt/completion/total token SLIs.
+
+### Phase F — Trust Score Integration
+Integrates **VeriAlign alignment verification** into the observability pipeline. Span-level `gen_ai.eval.trust_score` attributes with component breakdown (consistency, factuality, safety, instruction following).
+
+## Quick Start
+
+```bash
+git clone https://github.com/Anandhasasidharan/AgentOps-Agent-System-Operations.git
+cd AgentOps-Agent-System-Operations
+docker compose up -d
+pip install httpx && python scripts/seed.py
+```
+
+Open the dashboard → [http://localhost:8003](http://localhost:8003)
+
+## Tech Stack
+
+| Layer | Choice |
+|-------|--------|
+| Language | Python 3.11+ |
+| API | FastAPI + Pydantic v2 |
+| Database | PostgreSQL 16 (async via SQLAlchemy 2.0 + asyncpg) |
+| Telemetry | OpenTelemetry OTLP (JSON over HTTP) |
+| Predictive | NumPy (DTMC, PAC bounds, Z-scores) |
+| CLI | Typer (`cbctl`, `chaosctl`, `sloctl`) |
+| Auth | X-API-Key header → tenant lookup |
+| Container | Docker Compose (multi-service single Dockerfile) |
+| Testing | pytest + pytest-asyncio + httpx ASGITransport + aiosqlite |
+| CI | GitHub Actions (test → lint → build+push) |

@@ -1,0 +1,102 @@
+# Architecture
+
+## System Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         AgentOps Platform                                │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  ┌─────────────────────┐    ┌─────────────────────┐                     │
+│  │   Circuit Breaker    │    │   Chaos Toolkit      │                    │
+│  │   (FastAPI :8001)    │    │   (FastAPI :8002)    │                    │
+│  │                      │    │                      │                    │
+│  │  ┌─────────────────┐ │    │  ┌─────────────────┐ │                    │
+│  │  │  Intercept Pipe  │ │    │  │  Injector Farm  │ │                    │
+│  │  │  • Risk scoring  │ │    │  │  • LLM (4 modes)│ │                    │
+│  │  │  • Anomaly       │ │    │  │  • Tool (4 mod.)│ │                    │
+│  │  │  • Policy eval   │ │    │  │  • RAG (4 modes)│ │                    │
+│  │  │  • State update  │ │    │  │  • MCP (4 modes)│ │                    │
+│  │  └─────────────────┘ │    │  └─────────────────┘ │                    │
+│  │                      │    │                      │                    │
+│  │  DTMC Predictor      │    │  LLM Scenario        │                    │
+│  │  Graph Monitor       │    │  Proposer + Refine   │                    │
+│  │  Policy Engine       │    │  Resilience Scoring  │                    │
+│  │  Kill Switch         │    │  CI/CD Reports       │                    │
+│  └─────────────────────┘    └─────────────────────┘                     │
+│                                                                          │
+│  ┌────────────────────────┐  ┌─────────────────────┐                    │
+│  │   SLO Platform          │  │   Dashboard          │                    │
+│  │   (FastAPI :8000)       │  │   (FastAPI :8003)    │                    │
+│  │                         │  │                      │                    │
+│  │  OTel Ingestion         │  │  Health Aggregation  │                    │
+│  │  SLO Evaluation         │  │  Status Page         │                    │
+│  │  GenAI Semconv          │  │                      │                    │
+│  │  Trust Score            │  └─────────────────────┘                    │
+│  │  OWASP / EU AI Act      │                                             │
+│  └────────────────────────┘  ┌─────────────────────┐                    │
+│                               │   Gateway            │                    │
+│                               │   (FastAPI :8004)    │                    │
+│                               │                      │                    │
+│                               │  NATS → WebSocket    │                    │
+│                               └─────────────────────┘                    │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+## Shared Infrastructure
+
+### Database
+All services share a single **PostgreSQL 16** database. Each service uses its own table namespace. SQLAlchemy 2.0 async sessions with asyncpg driver.
+
+### Authentication
+API key format: `slug:random-hex-token` (e.g. `acme-corp:a1b2c3...`). Sent as `X-API-Key` header, parsed by splitting on `:`. Hash stored in `Tenant.api_key_hash`. Key returned once on creation.
+
+### Events (NATS)
+The `agentops-events` package provides:
+- **6 NATS topics** for inter-service events
+- `publish_event()` with retry logic
+- No-op publisher when NATS is unavailable
+- Topic constants imported from `agentops_events` package root
+
+### Rate Limiting
+Per-tenant in-memory **sliding window** (60s) in `agentops_core.rate_limiter`. Configurable via `RATE_LIMIT_RPM` env var (default 60 req/min/tenant). Applied to CB, Chaos, SLO. `/health` and `/metrics` bypass the limiter.
+
+### Telemetry
+OpenTelemetry OTLP emission is **fire-and-forget HTTP POST** with OTLP JSON format. Prometheus scrapes all 5 services on `/metrics` (ports 8000-8004).
+
+## Lifecycle
+
+```
+DEVELOPMENT ──→ Chaos Toolkit validates agent resilience
+                    │
+                    ▼
+STAGING ──→ Circuit Breaker enforces policies on real tool calls
+                    │
+                    ▼
+PRODUCTION ──→ SLO Platform monitors SLIs, alerts on breaches
+                    │
+                    ▼
+         Compliance reports (OWASP, EU AI Act)
+```
+
+## Repo Structure
+
+```
+agentops-core/                # Shared library (Base, Auth, Telemetry, RateLimiter)
+agent-circuit-breaker/        # Policy enforcement + anomaly detection + DTMC
+agent-chaos-toolkit/          # Failure injection + scenario proposer
+agent-slo-platform/           # SLO evaluation + OTel + trust score
+agentops-sdk/                 # Python client SDK (httpx-based)
+agentops-events/              # NATS event models + publisher
+agentops-langchain/           # LangChain integration
+dashboard/                    # Health aggregation UI
+agent-gateway/                # WebSocket bridge (NATS → UI)
+monitoring/                   # Prometheus config + Grafana dashboards
+helm/                         # Kubernetes Helm chart
+website/                      # Docusaurus documentation site
+.github/workflows/            # CI/CD pipeline
+scripts/seed.py               # Demo data populator
+terraform/                    # AWS infrastructure as code
+docker-compose.yml            # Multi-service orchestration
+Dockerfile                    # Multi-service build (ARG SERVICE)
+```

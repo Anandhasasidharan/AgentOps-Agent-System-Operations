@@ -1,0 +1,143 @@
+# Chaos Toolkit
+
+**Resilience testing for AI agents.** Injects controlled failures into agent systems to measure resilience. Models what happens when the LLM times out, a tool crashes, RAG returns garbage, or an MCP server goes down.
+
+## How It Works
+
+```
+POST /api/v1/experiments
+        │
+        ▼
+┌────────────────────────────────────────┐
+│  run_experiment(scenario, agent_id)    │
+│                                        │
+│  1. Load scenario from DB              │
+│  2. Lookup target injector             │
+│  3. Create Experiment record           │
+│  4. Call injector(config)              │
+│     → simulated failure (no real API)  │
+│  5. Log FaultLog                       │
+│  6. Evaluate result:                   │
+│     survived + behavior match  → 1.0  │
+│     survived only               → 0.7  │
+│     agent errored               → 0.2  │
+│     injection failed            → 0.0  │
+│  7. Return Experiment                  │
+└────────────────────────────────────────┘
+```
+
+## LLM Scenario Proposer
+
+Generates novel chaos scenarios using an LLM:
+
+```
+Agent Traces + Tenant Config + Experiment History
+                    │
+                    ▼
+     ┌─────────────────────────────┐
+     │  propose_scenarios()        │
+     │                             │
+     │  1. Build context from:     │
+     │     • Agent tool traces     │
+     │     • Current config        │
+     │     • Past results          │
+     │  2. LLM generates 3-5       │
+     │     novel scenarios         │
+     │  3. refine_proposals()      │
+     │     • Feasibility check     │
+     │     • Coverage analysis     │
+     │     • Edge case ID          │
+     │  4. Output production       │
+     │     YAML definitions        │
+     └─────────────────────────────┘
+                    │
+                    ▼
+          New Chaos Scenarios
+```
+
+### API
+- `POST /api/v1/scenarios/propose` — Generate scenarios (takes `ProposeRequest` with agent traces, returns `ProposedScenario[]`)
+- `POST /api/v1/scenarios/refine` — Refine proposals through LLM critique iteration
+
+## 16 Failure Modes (4 targets × 4 modes each)
+
+| Target | Failure Modes | What It Simulates |
+|--------|---------------|-------------------|
+| **LLM** | timeout, hallucination, model_downgrade, refusal | AI model produces bad output or fails |
+| **Tools** | timeout, crash (500), bad_output, wrong_data | External API errors or junk |
+| **RAG** | no_results, bad_data, corrupted_context, slow_response | Knowledge retrieval fails |
+| **MCP** | server_down (502), timeout, bad_capabilities, auth_failure (401) | MCP infrastructure fails |
+
+All injectors are **synthetic** — no real LLM API calls, no real external services.
+
+## 15 Built-in Scenarios
+
+| # | Scenario | Target | Failure Mode |
+|---|----------|--------|--------------|
+| 1 | LLM Timeout During Reasoning | llm | timeout |
+| 2 | LLM Hallucination in Tool Selection | llm | hallucination |
+| 3 | LLM Model Downgrade | llm | model_downgrade |
+| 4 | LLM Refusal to Execute | llm | refusal |
+| 5 | Tool Timeout | tool | timeout |
+| 6 | Tool Crash | tool | crash |
+| 7 | Tool Bad Output | tool | bad_output |
+| 8 | Tool Wrong Data | tool | wrong_data |
+| 9 | RAG No Results | rag | no_results |
+| 10 | RAG Corrupted Data | rag | bad_data |
+| 11 | RAG Context Corruption | rag | corrupted_context |
+| 12 | RAG Slow Response | rag | slow_response |
+| 13 | MCP Server Down | mcp | server_down |
+| 14 | MCP Timeout | mcp | timeout |
+| 15 | MCP Auth Failure | mcp | auth_failure |
+
+## Scoring
+
+**Per-experiment**: 0.0–1.0 based on survival + behavior match.
+
+**Aggregate resilience score**:
+- Pass rate (score ≥ 0.7)
+- Average resilience score
+- Worst-performing target type
+
+| Pass Rate | Recommendation |
+|-----------|---------------|
+| < 50% | **Critical** — "Implement fallback logic for [target]" |
+| < 70% | **Warning** — "Add timeout handling with retry mechanism" |
+| < 90% | **Info** — "Consider graceful degradation patterns" |
+
+## 15 API Endpoints
+
+| Method | Route | Purpose |
+|--------|-------|---------|
+| `GET` | `/health` | Health check |
+| `POST` | `/api/v1/scenarios` | Create scenario |
+| `GET` | `/api/v1/scenarios` | List scenarios |
+| `POST` | `/api/v1/scenarios/seed` | Seed built-in scenarios |
+| `POST` | `/api/v1/scenarios/propose` | LLM-generate new scenarios |
+| `POST` | `/api/v1/scenarios/refine` | Refine proposed scenarios |
+| `POST` | `/api/v1/experiments` | Run a chaos experiment |
+| `POST` | `/api/v1/experiments/batch` | Run all scenarios |
+| `GET` | `/api/v1/experiments` | List experiments |
+| `GET` | `/api/v1/resilience-score` | Aggregated resilience report |
+| `POST` | `/api/v1/reports` | Create CI report |
+| `GET` | `/api/v1/reports` | List reports |
+| `GET` | `/api/v1/reports/{id}/junit` | JUnit XML |
+| `GET` | `/api/v1/reports/{id}/github-summary` | GitHub Actions summary |
+| `GET` | `/api/v1/scenarios/{id}` | Get scenario |
+| `GET` | `/api/v1/experiments/{id}` | Get experiment |
+
+## CLI (`chaosctl`)
+
+```
+chaosctl apply <file>        Apply YAML scenario definitions
+chaosctl run <id> <agent>    Run single experiment
+chaosctl batch <agent>       Run all scenarios
+chaosctl report              Show resilience score summary
+chaosctl seed                Seed built-in scenarios
+```
+
+## Data Models (4 tables)
+- **Scenario** — test definition (target, failure_mode, config JSON, expected_behavior)
+- **Experiment** — test run record with status, injection details, resilience score
+- **ExperimentReport** — aggregated report for CI/CD output
+- **FaultLog** — per-call audit of injected faults and agent responses

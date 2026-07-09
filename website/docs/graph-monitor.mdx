@@ -1,0 +1,104 @@
+# Graph Monitor
+
+**Real-time execution graph topology tracking** with z-score anomaly detection.
+
+## Overview
+
+The graph monitor builds a directed graph of agent tool-use sequences in real-time. Each edge represents a transition between tools, weighted by frequency. Deviations from normal topology trigger anomaly detection.
+
+## How It Works
+
+```
+Tool Calls (streaming)
+        │
+        ▼
+┌────────────────────────────────┐
+│  ExecutionGraph.update()       │
+│                                │
+│  For each consecutive pair:    │
+│  (tool_A → tool_B):           │
+│    • Increment edge weight     │
+│    • Update running mean/σ     │
+│                                │
+│  Maintains:                    │
+│    • adjacency matrix          │
+│    • per-edge statistics       │
+│    • global graph metrics      │
+└────────────────────────────────┘
+        │
+        ▼
+┌────────────────────────────────┐
+│  AnomalyEngine                 │
+│                                │
+│  For each new edge:            │
+│    z = (weight - μ) / σ        │
+│    if |z| > 2.0: flag anomaly  │
+│                                │
+│  Graph factor weight: 0.20     │
+│  (blended with other factors)  │
+└────────────────────────────────┘
+```
+
+## Key Components
+
+### ExecutionGraph
+Located in `graph_monitor.py`:
+- `update(agent_id, tool_name)` — records tool transition, updates edge weights
+- `get_edge_weight(agent_id, from_tool, to_tool)` — returns current weight
+- `get_stats(agent_id)` — returns mean and std for each edge
+- `z_score(agent_id, from_tool, to_tool, weight)` — calculates anomaly score
+- `is_anomalous(...)` — returns True when |z| > 2
+
+### Anomaly Engine Integration
+The graph factor is blended at **20% weight** into the composite anomaly score alongside:
+- Frequency Z-score (30%)
+- Tool entropy drift (25%)
+- Reasoning loop detection (30%)
+- Timing Z-score (15%)
+
+## API
+
+| Method | Route | Description |
+|--------|-------|-------------|
+| `GET` | `/api/v1/graph/status` | Current execution graph state |
+| `GET` | `/api/v1/graph/anomalies` | Active graph anomalies |
+
+### Graph Status Response
+
+```json
+{
+  "agent_id": "demo-agent",
+  "total_edges": 24,
+  "total_nodes": 8,
+  "edges": [
+    {"from": "read_file", "to": "write_file", "weight": 12, "mean": 8.5, "std": 2.1},
+    {"from": "write_file", "to": "read_file", "weight": 3, "mean": 5.0, "std": 1.5}
+  ],
+  "updated_at": "2026-07-09T12:00:00Z"
+}
+```
+
+### Graph Anomalies Response
+
+```json
+{
+  "agent_id": "demo-agent",
+  "anomalies": [
+    {
+      "edge": {"from": "bash", "to": "delete_file"},
+      "z_score": 3.2,
+      "weight": 8,
+      "mean": 1.5,
+      "is_anomalous": true
+    }
+  ],
+  "total_anomalies": 1
+}
+```
+
+## Files
+
+- `agent-circuit-breaker/src/circuit_breaker/graph_monitor.py` — ExecutionGraph + z-score logic
+- `agent-circuit-breaker/src/circuit_breaker/anomaly_engine.py` — graph factor (weight 0.20)
+- `agent-circuit-breaker/src/circuit_breaker/proxy.py` — edge recording during intercept
+- `agent-circuit-breaker/src/circuit_breaker/api.py` — `/graph/status` and `/graph/anomalies` endpoints

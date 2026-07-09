@@ -8,7 +8,7 @@ on:
 
 env:
   PYTHON_VERSION: "3.11"
-  IMAGE_REPOSITORY: asd492
+  IMAGE_REPOSITORY: asd492/agentops
   IMAGE_TAG: ${{ github.sha }}
 
 jobs:
@@ -95,11 +95,11 @@ jobs:
           for service in agent-circuit-breaker agent-chaos-toolkit agent-slo-platform dashboard agent-gateway; do
             docker build \
               --build-arg SERVICE=$service \
-              -t ${{ env.IMAGE_REPOSITORY }}/$service:${{ env.IMAGE_TAG }} \
-              -t ${{ env.IMAGE_REPOSITORY }}/$service:latest \
+              -t ${{ env.IMAGE_REPOSITORY }}:$service-${{ env.IMAGE_TAG }} \
+              -t ${{ env.IMAGE_REPOSITORY }}:$service-latest \
               .
-            docker push ${{ env.IMAGE_REPOSITORY }}/$service:${{ env.IMAGE_TAG }}
-            docker push ${{ env.IMAGE_REPOSITORY }}/$service:latest
+            docker push ${{ env.IMAGE_REPOSITORY }}:$service-${{ env.IMAGE_TAG }}
+            docker push ${{ env.IMAGE_REPOSITORY }}:$service-latest
           done
 
   deploy-infra:

@@ -106,6 +106,25 @@ class ResilienceScoreSummary(BaseModel):
     recommendations: list[str]
 
 
+class ProposeRequest(BaseModel):
+    agent_id: str | None = Field(default=None, max_length=128)
+    model: str = Field(default="gpt-4o", max_length=64)
+
+
+class ProposedScenario(BaseModel):
+    name: str
+    description: str
+    target_type: str
+    failure_mode: str
+    config: dict[str, Any] = Field(default_factory=dict)
+    expected_behavior: str = "graceful_degradation"
+    agent_should_survive: bool = True
+
+
+class ProposeResponse(BaseModel):
+    proposals: list[ProposedScenario]
+
+
 class ExperimentBatchRequest(BaseModel):
     agent_id: str = Field(..., max_length=128)
     scenarios: list[uuid.UUID] = Field(default_factory=list)

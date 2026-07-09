@@ -28,12 +28,16 @@ from chaos_toolkit.metrics import (
 )
 from chaos_toolkit.models import Base, Experiment, ExperimentReport, Scenario
 from chaos_toolkit.reporters.ci import generate_github_actions_summary, generate_junit_xml
+from chaos_toolkit.scenario_proposer import propose_scenarios, refine_proposals
 from chaos_toolkit.scenarios import seed_builtin_scenarios
 from chaos_toolkit.schemas import (
     ExperimentBatchRequest,
     ExperimentOut,
     ExperimentReportOut,
     ExperimentRunRequest,
+    ProposeRequest,
+    ProposeResponse,
+    ProposedScenario,
     ResilienceScoreSummary,
     ScenarioCreate,
     ScenarioOut,
@@ -184,6 +188,33 @@ async def seed_scenarios(
     for s in scenarios:
         scenarios_total.labels(target_type=s.target_type, tenant_id=str(tenant.id)).inc()
     return scenarios
+
+
+# ─── Propose & Refine ──────────────────────────────────────────────────────────
+
+
+@app.post("/api/v1/scenarios/propose", response_model=ProposeResponse)
+async def propose(
+    data: ProposeRequest,
+    tenant=Depends(get_tenant),
+    session: AsyncSession = Depends(get_db),
+) -> ProposeResponse:
+    proposals = await propose_scenarios(session, tenant.id, data.agent_id, data.model)
+    return ProposeResponse(
+        proposals=[ProposedScenario(**p) for p in proposals]
+    )
+
+
+@app.post("/api/v1/scenarios/refine", response_model=ProposeResponse)
+async def refine(
+    data: ProposeRequest,
+    tenant=Depends(get_tenant),
+    session: AsyncSession = Depends(get_db),
+) -> ProposeResponse:
+    proposals = await refine_proposals(session, tenant.id, data.agent_id or "", data.model)
+    return ProposeResponse(
+        proposals=[ProposedScenario(**p) for p in proposals]
+    )
 
 
 # ─── Experiments ──────────────────────────────────────────────────────────────

@@ -13,12 +13,23 @@ KNOWN_ATTRIBUTES = {
     "gen_ai.request.model",
     "gen_ai.usage.input_tokens",
     "gen_ai.usage.output_tokens",
+    "gen_ai.usage.prompt_tokens",
+    "gen_ai.usage.completion_tokens",
+    "gen_ai.usage.total_tokens",
     "gen_ai.eval.success",
     "gen_ai.eval.hallucination",
     "gen_ai.eval.total",
+    "gen_ai.eval.trust_score",
+    "gen_ai.eval.trust_supported",
+    "gen_ai.eval.trust_unsupported",
+    "gen_ai.eval.trust_contradictions",
+    "gen_ai.eval.trust_checklist",
     "gen_ai.tool.name",
     "gen_ai.tool.success",
     "gen_ai.tool.calls",
+    "gen_ai.response.id",
+    "gen_ai.response.model",
+    "gen_ai.response.finish_reasons",
     "agentops.agent.id",
     "agentops.environment",
     "agentops.risk_weight",
@@ -75,7 +86,17 @@ def _flatten_attrs(attrs: list[dict[str, Any]]) -> dict[str, Any]:
             result[key] = float(value["doubleValue"])
         elif "boolValue" in value:
             result[key] = bool(value["boolValue"])
+        elif "arrayValue" in value:
+            arr = value["arrayValue"].get("values", [])
+            result[key] = [_resolve_any_value(v) for v in arr]
     return result
+
+
+def _resolve_any_value(v: dict[str, Any]) -> Any:
+    for key in ("stringValue", "intValue", "doubleValue", "boolValue"):
+        if key in v:
+            return v[key]
+    return None
 
 
 def _resolve_agent_id(agent_ref: Any) -> uuid.UUID | None:
@@ -115,9 +136,17 @@ def extract_sli_metrics(span: OtelSpan) -> dict[str, float]:
         metrics["input_tokens"] = float(attrs["gen_ai.usage.input_tokens"])
     if "gen_ai.usage.output_tokens" in attrs:
         metrics["output_tokens"] = float(attrs["gen_ai.usage.output_tokens"])
+    if "gen_ai.usage.prompt_tokens" in attrs:
+        metrics["prompt_tokens"] = float(attrs["gen_ai.usage.prompt_tokens"])
+    if "gen_ai.usage.completion_tokens" in attrs:
+        metrics["completion_tokens"] = float(attrs["gen_ai.usage.completion_tokens"])
+    if "gen_ai.usage.total_tokens" in attrs:
+        metrics["total_tokens"] = float(attrs["gen_ai.usage.total_tokens"])
     if "gen_ai.response.duration" in attrs:
         metrics["latency_ms"] = float(attrs["gen_ai.response.duration"])
     if "agentops.risk_weight" in attrs:
         metrics["risk_weight"] = float(attrs["agentops.risk_weight"])
+    if "gen_ai.eval.trust_score" in attrs:
+        metrics["trust_score"] = float(attrs["gen_ai.eval.trust_score"])
 
     return metrics

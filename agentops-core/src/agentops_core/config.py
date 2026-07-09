@@ -8,4 +8,5 @@ class AgentOpsSettings(BaseSettings):
 
     database_url: str = "postgresql+asyncpg://agentops:agentops@localhost:5432/agentops"
     api_key: str = "dev-api-key"
+    rate_limit_rpm: int = 60
     log_level: str = "info"

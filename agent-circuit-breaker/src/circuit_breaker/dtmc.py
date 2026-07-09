@@ -70,7 +70,10 @@ async def build_dtmc(
     result = await session.execute(stmt)
     calls = list(result.scalars().all())
     if len(calls) < 3:
-        return {"states": [], "matrix": None, "transitions": len(calls), "error": "insufficient_data"}
+        return {
+            "states": [], "matrix": None, "transitions": len(calls),
+            "error": "insufficient_data",
+        }
 
     sessions: dict[str, list[ToolCall]] = defaultdict(list)
     for c in calls:
@@ -106,7 +109,7 @@ async def build_dtmc(
 
             if i + 1 < len(seq):
                 next_call = seq[i + 1]
-                next_state = _collapse_tool(next_call.tool_name) if collapse else next_call.tool_name
+                next_state = _collapse_tool(next_call.tool_name) if collapse else next_call.tool_name  # noqa: E501
                 if next_state not in state_to_idx:
                     continue
                 next_idx = state_to_idx[next_state]

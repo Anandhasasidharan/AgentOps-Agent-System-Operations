@@ -26,6 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from circuit_breaker.config import Settings
 from circuit_breaker.db import engine, get_db
+from circuit_breaker.graph_monitor import get_graph
 from circuit_breaker.incident_engine import get_active_incidents, resolve_incident
 from circuit_breaker.kill_switch import (
     activate_kill_switch,
@@ -49,7 +50,6 @@ from circuit_breaker.models import (
     Policy,
     ToolCall,
 )
-from circuit_breaker.graph_monitor import get_graph
 from circuit_breaker.predictor import get_prediction
 from circuit_breaker.proxy import intercept_tool_call
 from circuit_breaker.rollback_engine import execute_rollback

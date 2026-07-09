@@ -61,7 +61,10 @@ async def compute_anomaly_score(
     details["graph_score"] = graph_score
 
     # Weighted composite score (0-1)
-    weights = {"frequency": 0.25, "entropy": 0.20, "reasoning_loop": 0.25, "timing": 0.10, "graph": 0.20}
+    weights = {
+        "frequency": 0.25, "entropy": 0.20, "reasoning_loop": 0.25,
+        "timing": 0.10, "graph": 0.20,
+    }
     composite = sum(weights[k] * min(scores.get(k, 0), 1.0) for k in weights)
     details["composite_score"] = composite
     details["component_scores"] = scores

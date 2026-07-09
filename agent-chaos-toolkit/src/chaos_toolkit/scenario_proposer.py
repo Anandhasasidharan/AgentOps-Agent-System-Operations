@@ -9,24 +9,59 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from chaos_toolkit.models import Experiment, Scenario
 
-SYSTEM_PROMPT = """You are a chaos engineering expert for AI agents. Given an agent's tool usage history and past experiment results, propose 3 NEW failure scenarios that would stress untested failure modes.
+_SYSTEM_PROMPT_HEADER = (
+    "You are a chaos engineering expert for AI agents. "
+    "Given an agent's tool usage history and past experiment results, "
+    "propose 3 NEW failure scenarios that would stress untested failure modes."
+)
+_SYSTEM_PROMPT_FMT = (
+    "Return ONLY valid JSON matching this exact schema:\n"
+    '{\n  "proposals": [\n    {\n'
+    '      "name": "short-name-no-spaces",\n'
+    '      "description": "What failure mode and why this scenario matters",\n'
+    '      "target_type": "llm|tool|rag|mcp",\n'
+    '      "failure_mode": "timeout|crash|bad_output|hallucination|'
+    "refusal|model_downgrade|no_results|bad_data|"
+    'corrupted_context|slow_response|server_down|auth_failure|wrong_data",\n'
+    '      "config": {"params": {"delay_seconds": 0.5}},\n'
+    '      "expected_behavior": "graceful_degradation|fail_fast|'
+    'retry_success|fallback_used|error_handled",\n'
+    '      "agent_should_survive": true\n    }\n  ]\n}\n\n'
+    "Built-in scenarios exist for {existing_modes}. "
+    "Do not repeat these. Propose scenarios for targets or "
+    "failure modes the agent has NOT been tested against."
+)
 
-Return ONLY valid JSON matching this exact schema:
-{
-  "proposals": [
-    {
-      "name": "short-name-no-spaces",
-      "description": "What failure mode and why this scenario matters",
-      "target_type": "llm|tool|rag|mcp",
-      "failure_mode": "timeout|crash|bad_output|hallucination|refusal|model_downgrade|no_results|bad_data|corrupted_context|slow_response|server_down|auth_failure|wrong_data",
-      "config": {"params": {"delay_seconds": 0.5}},
-      "expected_behavior": "graceful_degradation|fail_fast|retry_success|fallback_used|error_handled",
-      "agent_should_survive": true
-    }
-  ]
-}
+SYSTEM_PROMPT = _SYSTEM_PROMPT_HEADER + "\n\n" + _SYSTEM_PROMPT_FMT
 
-Built-in scenarios exist for {existing_modes}. Do not repeat these. Propose scenarios for targets or failure modes the agent has NOT been tested against."""
+_REFINE_PROMPT_HEADER = (
+    "You are a chaos engineering expert refining failure scenarios. "
+    "Given an agent's experiment outcomes, modify the previous proposals "
+    "to be more challenging."
+)
+_REFINE_PROMPT_FMT = (
+    "Rules:\n"
+    "- Scenarios the agent SURVIVED: increase intensity "
+    "(longer delays, more corrupted data, stricter auth)\n"
+    "- Scenarios the agent FAILED: reduce intensity "
+    "OR replace with different failure mode\n"
+    "- Always propose 3 scenarios total\n"
+    "- Do NOT repeat existing test coverage: {existing_modes}\n\n"
+    "Return ONLY valid JSON matching this schema:\n"
+    '{\n  "proposals": [\n    {\n'
+    '      "name": "short-name-no-spaces",\n'
+    '      "description": "What failure mode and why this scenario matters",\n'
+    '      "target_type": "llm|tool|rag|mcp",\n'
+    '      "failure_mode": "timeout|crash|bad_output|hallucination|'
+    "refusal|model_downgrade|no_results|bad_data|"
+    'corrupted_context|slow_response|server_down|auth_failure|wrong_data",\n'
+    '      "config": {"params": {"delay_seconds": 0.5}},\n'
+    '      "expected_behavior": "graceful_degradation|fail_fast|'
+    'retry_success|fallback_used|error_handled",\n'
+    '      "agent_should_survive": true\n    }\n  ]\n}'
+)
+
+REFINE_PROMPT = _REFINE_PROMPT_HEADER + "\n\n" + _REFINE_PROMPT_FMT
 
 
 async def propose_scenarios(
@@ -103,30 +138,6 @@ def _build_prompt(context: dict[str, Any]) -> str:
     return header + body
 
 
-REFINE_PROMPT = """You are a chaos engineering expert refining failure scenarios. Given an agent's experiment outcomes, modify the previous proposals to be more challenging.
-
-Rules:
-- Scenarios the agent SURVIVED: increase intensity (longer delays, more corrupted data, stricter auth)
-- Scenarios the agent FAILED: reduce intensity OR replace with different failure mode
-- Always propose 3 scenarios total
-- Do NOT repeat existing test coverage: {existing_modes}
-
-Return ONLY valid JSON matching this schema:
-{
-  "proposals": [
-    {
-      "name": "short-name-no-spaces",
-      "description": "What failure mode and why this scenario matters",
-      "target_type": "llm|tool|rag|mcp",
-      "failure_mode": "timeout|crash|bad_output|hallucination|refusal|model_downgrade|no_results|bad_data|corrupted_context|slow_response|server_down|auth_failure|wrong_data",
-      "config": {"params": {"delay_seconds": 0.5}},
-      "expected_behavior": "graceful_degradation|fail_fast|retry_success|fallback_used|error_handled",
-      "agent_should_survive": true
-    }
-  ]
-}"""
-
-
 async def refine_proposals(
     session: AsyncSession,
     tenant_id: uuid.UUID,
@@ -161,10 +172,13 @@ async def refine_proposals(
 
     prompt = (
         f"Agent: {agent_id}\n"
-        f"Scenarios survived ({len(survived_modes)}): {', '.join(set(survived_modes)) or 'none'}\n"
-        f"Scenarios failed ({len(failed_modes)}): {', '.join(set(failed_modes)) or 'none'}\n"
+        f"Scenarios survived ({len(survived_modes)}): "
+        f"{', '.join(set(survived_modes)) or 'none'}\n"
+        f"Scenarios failed ({len(failed_modes)}): "
+        f"{', '.join(set(failed_modes)) or 'none'}\n"
         f"Total experiments: {len(experiments)}, "
-        f"survival rate: {sum(1 for e in experiments if e.agent_survived) / len(experiments):.0%}\n\n"
+        f"survival rate: "
+        f"{sum(1 for e in experiments if e.agent_survived) / len(experiments):.0%}\n\n"
         f"{REFINE_PROMPT.replace('{existing_modes}', existing_modes_str)}"
     )
 

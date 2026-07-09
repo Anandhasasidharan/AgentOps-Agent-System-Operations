@@ -9,15 +9,23 @@ from typing import Any
 class ExecutionGraph:
     def __init__(self, window_seconds: int = 3600):
         self.window_seconds = window_seconds
-        self._agent_tool: dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
-        self._agent_agent: dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
+        self._agent_tool: dict[str, dict[str, list[float]]] = (
+            defaultdict(lambda: defaultdict(list))
+        )
+        self._agent_agent: dict[str, dict[str, list[float]]] = (
+            defaultdict(lambda: defaultdict(list))
+        )
 
-    def record_edge(self, source_agent: str, target_tool: str, timestamp: float | None = None) -> None:
+    def record_edge(
+        self, source_agent: str, target_tool: str, timestamp: float | None = None
+    ) -> None:
         ts = timestamp or time.time()
         self._prune(source_agent)
         self._agent_tool[source_agent][target_tool].append(ts)
 
-    def record_agent_edge(self, source_agent: str, target_agent: str, timestamp: float | None = None) -> None:
+    def record_agent_edge(
+        self, source_agent: str, target_agent: str, timestamp: float | None = None
+    ) -> None:
         ts = timestamp or time.time()
         self._prune_agent(source_agent)
         self._agent_agent[source_agent][target_agent].append(ts)
@@ -32,7 +40,10 @@ class ExecutionGraph:
 
         values = list(counts.values())
         mean = sum(values) / len(values)
-        variance = sum((v - mean) ** 2 for v in values) / len(values) if len(values) > 1 else 1.0
+        variance = (
+            sum((v - mean) ** 2 for v in values) / len(values)
+            if len(values) > 1 else 1.0
+        )
         std = math.sqrt(variance) or 1.0
 
         current = counts[tool_name]
@@ -61,7 +72,10 @@ class ExecutionGraph:
                 continue
             values = list(counts.values())
             mean = sum(values) / len(values)
-            variance = sum((v - mean) ** 2 for v in values) / len(values) if len(values) > 1 else 1.0
+            variance = (
+                sum((v - mean) ** 2 for v in values) / len(values)
+                if len(values) > 1 else 1.0
+            )
             std = math.sqrt(variance) or 1.0
             for tool, count in counts.items():
                 z = (count - mean) / std

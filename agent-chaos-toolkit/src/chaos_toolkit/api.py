@@ -10,6 +10,7 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 from agentops_core.auth import make_get_tenant
+from agentops_core.rate_limiter import add_rate_limiter
 from agentops_events import TOPIC_CHAOS_EXPERIMENT, create_nats_client, make_event, publish_event
 from fastapi import Depends, FastAPI, HTTPException, Query
 from sqlalchemy import select
@@ -111,6 +112,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Agent Chaos Toolkit", version="0.1.0", lifespan=lifespan)
 
 add_metrics_route(app)
+add_rate_limiter(app, settings.rate_limit_rpm)
 get_tenant = make_get_tenant(get_db)
 
 

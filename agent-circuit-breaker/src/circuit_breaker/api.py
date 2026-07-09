@@ -11,6 +11,7 @@ from time import time
 from typing import Any
 
 from agentops_core.auth import make_get_tenant
+from agentops_core.rate_limiter import add_rate_limiter
 from agentops_events import (
     TOPIC_CB_INCIDENT,
     TOPIC_CB_INTERCEPT,
@@ -137,6 +138,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Agent Circuit Breaker", version="0.1.0", lifespan=lifespan)
 
 add_metrics_route(app)
+add_rate_limiter(app, settings.rate_limit_rpm)
 get_tenant = make_get_tenant(get_db)
 
 

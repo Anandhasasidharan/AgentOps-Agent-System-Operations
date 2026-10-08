@@ -1,7 +1,7 @@
 # Circuit Breaker
 
 [![CI/CD](https://img.shields.io/github/actions/workflow/status/Anandhasasidharan/AgentOps-Agent-System-Operations/agentops.yml?branch=main&logo=github)](https://github.com/Anandhasasidharan/AgentOps-Agent-System-Operations/actions)
-[![Tests](https://img.shields.io/badge/tests-36%20passing-6C5CE7?logo=pytest)](https://github.com/Anandhasasidharan/AgentOps-Agent-System-Operations/actions)
+[![Tests](https://img.shields.io/badge/tests-58%20passing-6C5CE7?logo=pytest)](https://github.com/Anandhasasidharan/AgentOps-Agent-System-Operations/actions)
 [![Coverage](https://img.shields.io/badge/coverage-75%25-22BA5A)](https://github.com/Anandhasasidharan/AgentOps-Agent-System-Operations)
 [![Python](https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python)](https://python.org)
 

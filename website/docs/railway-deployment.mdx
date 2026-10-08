@@ -1,0 +1,94 @@
+# Railway Deployment
+
+AgentOps deploys to Railway with a single `railway up` command. Each service runs from the same `Dockerfile` with a different `SERVICE` build arg.
+
+## Prerequisites
+
+1. Install Railway CLI: `npm i -g @railway/cli`
+2. Login: `railway login`
+3. Link repo: `railway link`
+
+## Deploy
+
+```bash
+# One command — deploys all services from railway.toml
+railway up
+```
+
+Railway reads `railway.toml` and creates/deploys each service:
+- `slo-platform`
+- `circuit-breaker`
+- `chaos-toolkit`
+- `dashboard`
+- `gateway`
+
+## Postgres
+
+Add a Postgres service in the Railway dashboard:
+1. Click "New Service" → "Add Postgres"
+2. Railway wires `DATABASE_URL` to all services automatically
+
+## Environment Variables
+
+Set in each Railway service's Variables tab:
+
+**slo-platform:**
+```env
+DATABASE_URL = ${{Postgres.DATABASE_URL}}
+RATE_LIMIT_RPM = 120
+LOG_LEVEL = info
+```
+
+**circuit-breaker:**
+```env
+DATABASE_URL = ${{Postgres.DATABASE_URL}}
+RATE_LIMIT_RPM = 120
+LOG_LEVEL = info
+```
+
+**chaos-toolkit:**
+```env
+DATABASE_URL = ${{Postgres.DATABASE_URL}}
+RATE_LIMIT_RPM = 120
+LOG_LEVEL = info
+```
+
+**dashboard:**
+```env
+CB_URL = ${{circuit-breaker.RAILWAY_PUBLIC_DOMAIN}}
+CHAOS_URL = ${{chaos-toolkit.RAILWAY_PUBLIC_DOMAIN}}
+SLO_URL = ${{slo-platform.RAILWAY_PUBLIC_DOMAIN}}
+GATEWAY_URL = ${{gateway.RAILWAY_PUBLIC_DOMAIN}}
+```
+
+**gateway:**
+```env
+NATS_URL = nats://your-nats-host:4222
+LOG_LEVEL = info
+```
+
+## NATS (Optional)
+
+For real-time dashboard updates via NATS:
+
+### Option 1 — NATS Railway Plugin
+Add "NATS" from the Railway marketplace.
+
+### Option 2 — Self-host on the same machine
+```bash
+docker run -d -p 4222:4222 -p 8222:8222 nats:2.10-alpine
+```
+Then set `NATS_URL` in gateway service vars.
+
+## After Deploy
+
+1. Visit your dashboard URL — all services should show healthy
+2. Seed data: `python scripts/seed.py` (point to your Railway dashboard URL)
+3. Verify the API:
+   ```bash
+   curl https://your-slo-platform.up.railway.app/health
+   ```
+
+## Downtime note
+
+Railway free tier has no cold-start. If using Render, services sleep after 15 min and need a cron job to keep alive.

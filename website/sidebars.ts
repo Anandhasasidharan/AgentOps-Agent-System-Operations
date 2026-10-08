@@ -33,6 +33,7 @@ const sidebars: SidebarsConfig = {
         'deployment',
         'rate-limiting',
         'ci-cd',
+        'railway-deployment',
       ],
     },
     'api-reference',

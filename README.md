@@ -77,6 +77,16 @@ pip install httpx && python scripts/seed.py
 
 Open the dashboard → [http://localhost:8003](http://localhost:8003)
 
+## 🌐 Live Demo (coming soon)
+
+Deploy to Railway in one command:
+
+```bash
+railway up
+```
+
+See [Railway Deployment Guide](website/docs/railway-deployment.mdx) for the full setup.
+
 ## 🏗️ Architecture — 5 Services
 
 | Service | Port | Purpose | Key Features |

@@ -1,0 +1,77 @@
+version: "3.8"
+
+# Production compose — use when Railway/Render not available
+# Usage: docker compose -f docker-compose.prod.yml up -d
+
+services:
+  nats:
+    image: nats:2.10-alpine
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    restart: always
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: agentops
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+      POSTGRES_DB: agentops
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: always
+
+  slo-platform:
+    build:
+      context: .
+      args: { SERVICE: agent-slo-platform }
+    env_file: .env.production
+    ports:
+      - "8000:8000"
+    depends_on: [postgres, nats]
+    restart: always
+
+  circuit-breaker:
+    build:
+      context: .
+      args: { SERVICE: agent-circuit-breaker }
+    env_file: .env.production
+    ports:
+      - "8001:8000"
+    depends_on: [postgres, nats]
+    restart: always
+
+  chaos-toolkit:
+    build:
+      context: .
+      args: { SERVICE: agent-chaos-toolkit }
+    env_file: .env.production
+    ports:
+      - "8002:8000"
+    depends_on: [postgres, nats]
+    restart: always
+
+  dashboard:
+    build:
+      context: .
+      args: { SERVICE: dashboard }
+    env_file: .env.production
+    ports:
+      - "8003:8000"
+    depends_on: [circuit-breaker, slo-platform, chaos-toolkit]
+    restart: always
+
+  gateway:
+    build:
+      context: .
+      args: { SERVICE: agent-gateway }
+    env_file: .env.production
+    ports:
+      - "8004:8000"
+    environment:
+      NATS_URL: nats://nats:4222
+    depends_on: [nats]
+    restart: always
+
+volumes:
+  pgdata:

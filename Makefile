@@ -19,6 +19,7 @@ demo-events:
 	python scripts/demo_langchain.py
 
 test:
+	cd agentops-core && python -m pytest -x && cd ..
 	cd agent-circuit-breaker && python -m pytest -x && cd ..
 	cd agent-chaos-toolkit && python -m pytest -x && cd ..
 	cd agent-slo-platform && python -m pytest -x && cd ..

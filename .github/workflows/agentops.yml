@@ -18,6 +18,8 @@ jobs:
     strategy:
       matrix:
         service:
+          - path: agentops-core
+            module: agentops_core
           - path: agent-circuit-breaker
             module: circuit_breaker
           - path: agent-chaos-toolkit

@@ -11,7 +11,7 @@
 [![Docker](https://img.shields.io/badge/Docker-2496ED?logo=docker)](https://hub.docker.com/u/asd492)
 [![License](https://img.shields.io/badge/license-MIT-22BA5A)](LICENSE)
 [![Last Commit](https://img.shields.io/github/last-commit/Anandhasasidharan/AgentOps-Agent-System-Operations?logo=git)](https://github.com/Anandhasasidharan/AgentOps-Agent-System-Operations/commits/main)
-[![Tests](https://img.shields.io/badge/tests-178%20passing-22BA5A?logo=pytest)](https://github.com/Anandhasasidharan/AgentOps-Agent-System-Operations/actions)
+[![Tests](https://img.shields.io/badge/tests-198%20passing-22BA5A?logo=pytest)](https://github.com/Anandhasasidharan/AgentOps-Agent-System-Operations/actions)
 [![Docker Pulls](https://img.shields.io/docker/pulls/asd492/agentops?logo=docker)](https://hub.docker.com/u/asd492)
 
 ---
@@ -87,7 +87,7 @@ Open the dashboard → [http://localhost:8003](http://localhost:8003)
 
 <!-- ![AgentOps dashboard](docs/assets/dashboard.png) -->
 
-The dashboard aggregates health, SLO status, and circuit-breaker state across all five services at [http://localhost:8003](http://localhost:8003).
+The dashboard aggregates health, SLO status, and circuit-breaker state from the platform services at [http://localhost:8003](http://localhost:8003).
 
 **Capture the screenshot yourself:**
 
@@ -132,19 +132,21 @@ sloctl report owasp --api-key "$API_KEY"
 
 The **documentation site is live** at [anandhasasidharan.github.io/AgentOps-Agent-System-Operations](https://anandhasasidharan.github.io/AgentOps-Agent-System-Operations/).
 
-The **application is not publicly hosted** — it is a five-service stack backed by Postgres, designed to run locally or in your own cloud account. Both paths are a single command:
+The **application is not publicly hosted** — it is a five-application-service stack backed by Postgres, designed to run locally or in your own cloud account. Both paths are a single command:
 
 ```bash
 # Local (Docker Compose)
 docker compose up -d
 
-# Railway (reads railway.toml, provisions all five services + Postgres)
+# Railway (reads railway.toml, provisions all five application services + Postgres)
 railway up
 ```
 
 See the [Railway Deployment Guide](website/docs/railway-deployment.mdx) for environment variables, health checks, and post-deploy verification.
 
-## 🏗️ Architecture — 5 Services
+## 🏗️ Architecture — 5 Application Services
+
+Five application services are built and deployed. Docker Compose additionally runs Postgres, NATS, Prometheus, and Grafana (nine containers total).
 
 | Service | Port | Purpose | Key Features |
 |---------|------|---------|--------------|
@@ -210,18 +212,19 @@ AgentOps is the runtime-operations layer of a set of AI-agent infrastructure pro
 | Service | Tests | Coverage | Gate | Focus |
 |---------|-------|----------|------|-------|
 | Circuit Breaker | 58 | 79% | 75% | DTMC, graph monitor, anomaly engine, policies, API |
-| Chaos Toolkit | 55 | 76% | 70% | Scenario proposer, refine, experiments, resilience scoring |
-| SLO Platform | 33 | 80% | 80% | OTel extraction, GenAI semconv, SLO evaluation, trust score |
+| Chaos Toolkit | 63 | 83% | 70% | Scenario proposer, refine, experiments, resilience scoring |
+| SLO Platform | 35 | 80% | 80% | OTel extraction, GenAI semconv, SLO evaluation, trust score |
 | Dashboard | 1 | — | — | Health aggregation routes |
 | Gateway | 8 | — | — | WebSocket bridge, auth |
+| Core | 10 | — | — | Rate limiter, seed and docs contracts |
 | Events | 11 | — | — | Event models, NATS publisher |
 | SDK | 5 | — | — | Client SDK |
 | LangChain | 7 | — | — | Callback handler, tool wrapper |
-| **Total** | **178** | — | — | |
+| **Total** | **198** | — | — | |
 
 ```bash
 # Run every package's suite
-for pkg in agent-circuit-breaker agent-chaos-toolkit agent-slo-platform \
+for pkg in agentops-core agent-circuit-breaker agent-chaos-toolkit agent-slo-platform \
            dashboard agent-gateway agentops-events agentops-sdk agentops-langchain; do
   (cd "$pkg" && python -m pytest -x)
 done

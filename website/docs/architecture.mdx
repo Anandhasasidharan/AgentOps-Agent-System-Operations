@@ -62,7 +62,7 @@ The `agentops-events` package provides:
 Per-tenant in-memory **sliding window** (60s) in `agentops_core.rate_limiter`. Configurable via `RATE_LIMIT_RPM` env var (default 60 req/min/tenant). Applied to CB, Chaos, SLO. `/health` and `/metrics` bypass the limiter.
 
 ### Telemetry
-OpenTelemetry OTLP emission is **fire-and-forget HTTP POST** with OTLP JSON format. Prometheus scrapes all 5 services on `/metrics` (ports 8000-8004).
+OpenTelemetry OTLP emission is **fire-and-forget HTTP POST** with OTLP JSON format. Prometheus scrapes all 5 application services on `/metrics` (ports 8000-8004).
 
 ## Lifecycle
 

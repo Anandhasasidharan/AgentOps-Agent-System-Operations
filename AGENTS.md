@@ -35,6 +35,7 @@ pip install -e agent-circuit-breaker/"[dev]"
 - API key format: `slug:random-hex-token` (e.g. `acme-corp:a1b2c3...`)
 - Sent as `X-API-Key` header, parsed by splitting on `:`
 - Hash stored in `Tenant.api_key_hash`; key returned once on creation
+- `scripts/seed.py` writes the created key to `.agentops.env` (gitignored, mode 0600); source it for local CLI use
 - Gateway validates keys by calling SLO's `/api/v1/tenants/me`
 - Dashboard passes `API_KEY` env var to gateway WebSocket as `?api_key=` query param
 
@@ -59,7 +60,7 @@ pip install -e agent-circuit-breaker/"[dev]"
 
 ## CI/CD pipeline
 `.github/workflows/agentops.yml`:
-1. **test** (5-matrix) → `pytest -x --cov=... --cov-report=term-missing`
+1. **test** (6-matrix) → `pytest -x --cov=... --cov-report=term-missing`
 2. **lint** → ruff + black --check
 3. **build** → Docker Buildx (5 images) — conditional on secrets
 4. **deploy-infra** → Terraform — conditional
@@ -67,7 +68,9 @@ pip install -e agent-circuit-breaker/"[dev]"
 6. **smoke** → Python SDK health check — conditional
 
 ## Architecture notes
+- **5 application services**: circuit-breaker, chaos-toolkit, slo-platform, dashboard, gateway
+- Docker Compose additionally runs Postgres, NATS, Prometheus, and Grafana (9 containers total)
 - All services share one Postgres DB, no per-service databases
 - Gateway (port 8004) bridges NATS→WebSocket for real-time dashboard
-- Prometheus scrapes all 5 services on `/metrics` (ports 8000-8004)
+- Prometheus scrapes all 5 application services on `/metrics` (ports 8000-8004)
 - OTel emission is fire-and-forget HTTP POST with OTLP JSON format

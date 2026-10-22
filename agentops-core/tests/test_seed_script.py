@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import shlex
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -84,7 +85,8 @@ def load_seed_module():
 
 @pytest.fixture
 def seed(tmp_path, monkeypatch):
-    env_file = tmp_path / ".agentops.env"
+    # A space catches unquoted paths in the printed "Load it" command.
+    env_file = tmp_path / "agent ops.env"
     monkeypatch.setenv("AGENTOPS_ENV_FILE", str(env_file))
     monkeypatch.setenv("API_KEY", "dev-api-key")
     module = load_seed_module()
@@ -114,6 +116,7 @@ def test_seed_accepts_201_creates_and_writes_the_real_key(seed, api, capsys, mon
     assert "chaosctl status" not in out
     assert "cbctl    status demo-agent" in out
     assert "sloctl   status" in out
+    assert f". {shlex.quote(str(env_file))}; set +a" in out
 
     # llm-timeout blocks for 35s; the demo experiment must pick a fast scenario.
     assert api.experiment_body["scenario_id"] == "s-crash"

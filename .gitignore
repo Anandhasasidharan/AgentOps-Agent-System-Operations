@@ -38,6 +38,9 @@ Thumbs.db
 # Temp files
 *.docx
 
+# Seeded local credentials
+.agentops.env
+
 # Docker
 .dockerignore
 

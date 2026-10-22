@@ -35,7 +35,7 @@ spec:
       severity: info
 ```
 
-Apply it: `sloctl apply -f slo.yaml`
+Apply it: `sloctl apply slo.yaml --api-key <api-key>` (the file is a positional argument; there is no `-f` flag).
 
 ## Key Endpoints
 

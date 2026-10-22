@@ -1,0 +1,11 @@
+apiVersion: agentops.io/v1
+kind: Policy
+metadata:
+  name: block-destructive-tools
+spec:
+  type: tool_blocklist
+  priority: 10
+  conditions:
+    tools: [delete_file, execute_command, drop_table]
+  action:
+    action: kill

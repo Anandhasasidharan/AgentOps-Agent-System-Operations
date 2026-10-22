@@ -21,10 +21,12 @@ uvicorn chaos_toolkit.api:app --port 8002 --reload
 ## Seed & Run
 
 ```bash
-chaosctl seed --api-key <tenant-uuid>
-chaosctl run <scenario-id> <agent-id> --tenant <uuid>
-chaosctl report --tenant <uuid>
+chaosctl seed --api-key <api-key>
+chaosctl run <scenario-id> <agent-id> --api-key <api-key>
+chaosctl report --api-key <api-key>
 ```
+
+`--api-key` takes the tenant key (`slug:token`). Add `--base-url http://localhost:8002` when the service is not on the CLI default. `chaosctl run` and `batch` use a 5-second HTTP timeout, so long-delay scenarios such as `llm-timeout` (35 s) must be run against the API directly.
 
 ## Key Endpoints
 

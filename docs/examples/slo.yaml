@@ -1,0 +1,16 @@
+apiVersion: agentops.io/v1
+kind: SLO
+metadata:
+  name: task-success-rate
+  tenant: acme-corp
+  environment: production
+spec:
+  sli: task_success_rate
+  target: 0.95
+  comparator: gt
+  window: 7d
+  burnRateAlerts:
+    - threshold: 0.02
+      severity: info
+    - threshold: 0.10
+      severity: critical

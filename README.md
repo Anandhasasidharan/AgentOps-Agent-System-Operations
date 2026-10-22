@@ -118,7 +118,7 @@ sloctl status --api-key "$API_KEY"
 sloctl report owasp --api-key "$API_KEY"
 ```
 
-> **Note:** `chaosctl run` uses a 5-second HTTP client timeout. Scenarios that simulate long LLM delays (for example the built-in `llm-timeout` at 35 s) will time out client-side; run those against the API directly or use a fast scenario.
+> **Note:** `chaosctl` uses a 60-second HTTP client timeout by default, configurable per command with `--timeout`/`-t` or the `CHAOS_TIMEOUT` environment variable. The built-in `llm-timeout` scenario (35 s) completes without extra flags.
 
 ## 🌐 Live Demo & Deployment
 

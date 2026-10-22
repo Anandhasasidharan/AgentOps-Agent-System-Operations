@@ -8,6 +8,7 @@ from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from agent_slo.models import ServiceLevelObjective
 
@@ -43,7 +44,11 @@ async def generate_owasp_report(
     session: AsyncSession,
     tenant_id: uuid.UUID,
 ) -> dict[str, Any]:
-    stmt = select(ServiceLevelObjective).where(ServiceLevelObjective.tenant_id == tenant_id)
+    stmt = (
+        select(ServiceLevelObjective)
+        .options(selectinload(ServiceLevelObjective.sli))
+        .where(ServiceLevelObjective.tenant_id == tenant_id)
+    )
     result = await session.execute(stmt)
     slos = result.scalars().all()
     configured_sli_kinds = {slo.sli.name for slo in slos}

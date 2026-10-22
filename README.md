@@ -114,9 +114,11 @@ chaosctl report --api-key "$API_KEY"
 
 # SLO Platform (:8000)
 sloctl apply docs/examples/slo.yaml --api-key "$API_KEY"
+sloctl status --api-key "$API_KEY"
+sloctl report owasp --api-key "$API_KEY"
 ```
 
-> **Note:** `chaosctl run` uses a 5-second HTTP client timeout. Scenarios that simulate long LLM delays (for example the built-in `llm-timeout` at 35 s) will time out client-side; run those against the API directly or use a fast scenario. `sloctl status` and `sloctl report` currently return HTTP 500 on a populated database.
+> **Note:** `chaosctl run` uses a 5-second HTTP client timeout. Scenarios that simulate long LLM delays (for example the built-in `llm-timeout` at 35 s) will time out client-side; run those against the API directly or use a fast scenario.
 
 ## 🌐 Live Demo & Deployment
 

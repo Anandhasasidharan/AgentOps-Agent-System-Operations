@@ -74,7 +74,9 @@
 git clone https://github.com/Anandhasasidharan/AgentOps-Agent-System-Operations.git
 cd AgentOps-Agent-System-Operations
 docker compose up -d
-pip install httpx && python scripts/seed.py
+pip install httpx
+python scripts/seed.py                # writes .agentops.env with the real key
+set -a; . ./.agentops.env; set +a     # export API_KEY
 ```
 
 Open the dashboard → [http://localhost:8003](http://localhost:8003)
@@ -98,6 +100,12 @@ python scripts/seed.py        # populate demo data
 `scripts/capture-dashboard.sh` waits for the dashboard to become healthy, seeds demo data if needed, and uses Playwright to write `docs/assets/dashboard.png` at 1440×900. For a GIF, run the same steps and record the browser window, or capture a short video and convert it with `ffmpeg`.
 
 ## 🛠️ CLI Quickstart
+
+The CLIs read the seeded key from `$API_KEY`; load it once with:
+
+```bash
+set -a; . ./.agentops.env; set +a
+```
 
 All three CLIs take the API key via `--api-key` (`-k`) and the service URL via `--base-url` (`-u`). YAML files are **positional arguments** — there is no `-f` flag. `--tenant` is not a valid option on any CLI; use `--api-key`.
 
@@ -259,14 +267,14 @@ Per-tenant in-memory sliding window (60s), applied to Circuit Breaker, Chaos Too
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `RATE_LIMIT_RPM` | `60` | Max requests per minute per tenant |
-| `RATE_LIMIT_RPM=0` | — | **Blocks every request (429).** Set a high value such as `100000` to effectively disable. |
+| `RATE_LIMIT_RPM=0` | — | **Disabled.** No requests are rate-limited. |
 
 ## 🌐 Environment Variables
 
 | Variable | Default | Service |
 |----------|---------|---------|
 | `DATABASE_URL` | `postgresql+asyncpg://agentops:agentops@localhost:5432/agentops` | All |
-| `API_KEY` | `dev-api-key` | Auth (tenant slug) |
+| `API_KEY` | `dev-api-key` | Seed tenant slug; seed writes the full `slug:token` key to `.agentops.env` |
 | `OTEL_EXPORTER_ENDPOINT` | `http://localhost:8000/v1/traces` | CB, Chaos |
 | `RATE_LIMIT_RPM` | `60` | CB, Chaos, SLO |
 | `LOG_LEVEL` | `info` | All |
@@ -310,9 +318,9 @@ npm run start
 ## 🧪 Demo
 
 ```bash
-# Seed the platform with demo data (prints the tenant API key at the end)
+# Seed the platform; this writes .agentops.env (mode 0600) with the tenant key.
 python scripts/seed.py
-export API_KEY="dev-api-key:<token-from-seed-output>"
+set -a; . ./.agentops.env; set +a
 
 # Verify circuit breaker
 curl -s http://localhost:8001/api/v1/tool-calls -H "X-API-Key: $API_KEY" | python -m json.tool

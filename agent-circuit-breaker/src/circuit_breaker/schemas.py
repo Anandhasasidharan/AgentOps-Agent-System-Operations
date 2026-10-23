@@ -7,7 +7,9 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from circuit_breaker.policy_conditions import PolicyConditionsError, validate_conditions
 
 
 class PolicyCreate(BaseModel):
@@ -22,6 +24,14 @@ class PolicyCreate(BaseModel):
     conditions: dict[str, Any] = Field(default_factory=dict)
     action: str = Field(default="block", pattern=r"^(allow|block|reroute|kill|alert)$")
     action_config: dict[str, Any] | None = None
+
+    @model_validator(mode="after")
+    def _validate_conditions(self) -> PolicyCreate:
+        try:
+            self.conditions = validate_conditions(self.policy_type, self.conditions)
+        except PolicyConditionsError as exc:
+            raise ValueError(str(exc)) from exc
+        return self
 
 
 class PolicyOut(BaseModel):

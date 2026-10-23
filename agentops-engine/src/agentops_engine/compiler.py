@@ -94,10 +94,10 @@ def _body_for(spec: Any) -> tuple[int, bytes]:
     raise PolicyCompileError(f"unsupported type {spec.policy_type}")
 
 
-def compile_policy_yaml(content: str) -> bytes:
-    docs = parse_yaml(content)
+def _compile_docs(docs) -> bytes:
     if len(docs) > MAX_POLICIES:
         raise PolicyCompileError("too many policies")
+    docs = sorted(docs, key=lambda d: d.spec.priority, reverse=True)
     policies = []
     for doc in docs:
         if not doc.spec.enabled:
@@ -106,14 +106,42 @@ def compile_policy_yaml(content: str) -> bytes:
         if action_id is None:
             raise PolicyCompileError(f"bad action {doc.spec.action.action}")
         typ, body = _body_for(doc.spec)
-        policies.append(struct.pack("<BBH", typ, action_id, 0) + struct.pack("<I", len(body)) + body)
+        policies.append(
+            struct.pack("<BBH", typ, action_id, 0) + struct.pack("<I", len(body)) + body
+        )
     body = b"".join(policies)
-    total_len = 12 + 4 + len(body)
+    total_len = len(MAGIC) + 12 + 4 + len(body)
     header = MAGIC + struct.pack("<HHII", VERSION, 0, total_len, 0)
     data = header + struct.pack("<I", len(policies)) + body
-    crc = zlib.crc32(data[:8] + data[12:]) & 0xFFFFFFFF
-    data = data[:8] + struct.pack("<I", crc) + data[12:]
+    crc = zlib.crc32(data[:12] + data[16:]) & 0xFFFFFFFF
+    data = data[:12] + struct.pack("<I", crc) + data[16:]
     return data
+
+
+def compile_policy_yaml(content: str) -> bytes:
+    return _compile_docs(parse_yaml(content))
+
+
+def compile_policy_models(policies) -> bytes:
+    from circuit_breaker.yaml_policy import PolicyAction, PolicySpec
+
+    docs = []
+    for p in policies:
+        docs.append(
+            PolicyYaml(
+                apiVersion="v1",
+                kind="Policy",
+                metadata={},
+                spec=PolicySpec(
+                    type=p.policy_type,
+                    priority=p.priority or 0,
+                    enabled=True if p.enabled is None else p.enabled,
+                    conditions=p.conditions or {},
+                    action=PolicyAction(action=p.action or "block", config=p.action_config),
+                ),
+            )
+        )
+    return _compile_docs(docs)
 
 
 def parse_blob(blob: bytes) -> list[tuple[int, int, bytes]]:
@@ -122,14 +150,14 @@ def parse_blob(blob: bytes) -> list[tuple[int, int, bytes]]:
     version, flags, total_len, crc = struct.unpack_from("<HHII", blob, 4)
     if version != VERSION or flags != 0 or total_len != len(blob):
         raise PolicyCompileError("bad header")
-    if (zlib.crc32(blob[:8] + blob[12:]) & 0xFFFFFFFF) != crc:
+    if (zlib.crc32(blob[:12] + blob[16:]) & 0xFFFFFFFF) != crc:
         raise PolicyCompileError("bad crc")
-    count, = struct.unpack_from("<I", blob, 16)
+    (count,) = struct.unpack_from("<I", blob, 16)
     pos = 20
     out = []
     for _ in range(count):
         typ, action, reserved = struct.unpack_from("<BBH", blob, pos)
-        body_len, = struct.unpack_from("<I", blob, pos + 4)
+        (body_len,) = struct.unpack_from("<I", blob, pos + 4)
         pos += 8
         body = blob[pos : pos + body_len]
         if len(body) != body_len:

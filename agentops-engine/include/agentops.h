@@ -57,6 +57,8 @@ typedef struct {
     int64_t now_ns;
     uint16_t minute_of_day;
     uint8_t weekday;
+    int64_t risk_score_micro;
+    int64_t anomaly_score_micro;
 } ao_call;
 
 typedef struct {

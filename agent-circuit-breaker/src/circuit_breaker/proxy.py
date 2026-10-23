@@ -19,7 +19,7 @@ from circuit_breaker.graph_monitor import get_graph
 from circuit_breaker.incident_engine import create_incident
 from circuit_breaker.kill_switch import check_kill_switch
 from circuit_breaker.models import ToolCall
-from circuit_breaker.policy_engine import PolicyDecision, evaluate_policies, load_policies
+from circuit_breaker.policy_engine import PolicyDecision, load_policies
 from circuit_breaker.predictor import compute_proactive_risk
 from circuit_breaker.risk_engine import score_tool_call
 from circuit_breaker.state_tracker import update_agent_state
@@ -104,7 +104,9 @@ async def intercept_tool_call(
     # 4. Evaluate policies
     windowed_stats = await _get_windowed_stats(session, tenant_id, agent_id)
     policies = await load_policies(session, tenant_id)
-    decision: PolicyDecision = await evaluate_policies(
+    from circuit_breaker.native_engine import evaluate_policies_selected
+
+    decision: PolicyDecision = await evaluate_policies_selected(
         session, tenant_id, tool_call, policies, windowed_stats
     )
 

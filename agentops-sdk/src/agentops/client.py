@@ -7,6 +7,12 @@ from typing import Any
 
 import httpx
 
+from agentops.fail_mode import FAIL_CLOSED, log_degraded_decision, resolve_fail_mode
+
+
+class AgentOpsUnavailableError(RuntimeError):
+    """Raised when the Circuit Breaker is unreachable and fail mode is closed."""
+
 
 class AgentOpsSDK:
     """Unified client for Circuit Breaker, Chaos Toolkit, and SLO Platform."""
@@ -18,12 +24,18 @@ class AgentOpsSDK:
         chaos_url: str = "http://localhost:8002",
         slo_url: str = "http://localhost:8000",
         timeout: float = 10.0,
+        fail_mode: str | None = None,
     ):
         self._headers = {"X-API-Key": api_key, "Content-Type": "application/json"}
         self._cb_url = cb_url.rstrip("/")
         self._chaos_url = chaos_url.rstrip("/")
         self._slo_url = slo_url.rstrip("/")
+        self._fail_mode = resolve_fail_mode(fail_mode)
         self._client = httpx.AsyncClient(timeout=timeout, headers=self._headers)
+
+    @property
+    def fail_mode(self) -> str:
+        return self._fail_mode
 
     async def close(self) -> None:
         await self._client.aclose()
@@ -56,21 +68,54 @@ class AgentOpsSDK:
         token_count: int | None = None,
         cost: float | None = None,
     ) -> dict[str, Any]:
-        r = await self._client.post(
-            f"{self._cb_url}/v1/intercept",
-            json={
-                "agent_id": agent_id,
-                "session_id": session_id,
-                "tool_name": tool_name,
-                "tool_input": tool_input,
-                "tool_output": tool_output,
-                "duration_ms": duration_ms,
-                "token_count": token_count,
-                "cost": cost,
-            },
+        try:
+            r = await self._client.post(
+                f"{self._cb_url}/v1/intercept",
+                json={
+                    "agent_id": agent_id,
+                    "session_id": session_id,
+                    "tool_name": tool_name,
+                    "tool_input": tool_input,
+                    "tool_output": tool_output,
+                    "duration_ms": duration_ms,
+                    "token_count": token_count,
+                    "cost": cost,
+                },
+            )
+            r.raise_for_status()
+            result = r.json()
+            if not isinstance(result, dict) or "allowed" not in result:
+                raise ValueError("intercept response is missing the 'allowed' field")
+            return result
+        except (httpx.HTTPError, ValueError) as exc:
+            return self._degraded("intercept", exc, agent_id, tool_name)
+
+    def _degraded(
+        self,
+        operation: str,
+        exc: Exception,
+        agent_id: str,
+        tool_name: str,
+    ) -> dict[str, Any]:
+        reason = f"{type(exc).__name__}: {exc}" if str(exc) else type(exc).__name__
+        log_degraded_decision(
+            service="agentops-sdk",
+            operation=operation,
+            fail_mode=self._fail_mode,
+            reason=reason,
+            agent_id=agent_id,
+            tool_name=tool_name,
         )
-        r.raise_for_status()
-        return r.json()
+        if self._fail_mode == FAIL_CLOSED:
+            raise AgentOpsUnavailableError(
+                f"AgentOps Circuit Breaker unavailable during {operation}; failing closed"
+            ) from exc
+        return {
+            "allowed": True,
+            "decision": "allow",
+            "degraded": True,
+            "reason": "AgentOps unavailable; allowed by AGENTOPS_FAIL_MODE=open",
+        }
 
     async def create_policy(
         self,

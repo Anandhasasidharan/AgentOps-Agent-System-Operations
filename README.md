@@ -11,7 +11,6 @@
 [![Docker](https://img.shields.io/badge/Docker-2496ED?logo=docker)](https://hub.docker.com/u/asd492)
 [![License](https://img.shields.io/badge/license-MIT-22BA5A)](LICENSE)
 [![Last Commit](https://img.shields.io/github/last-commit/Anandhasasidharan/AgentOps-Agent-System-Operations?logo=git)](https://github.com/Anandhasasidharan/AgentOps-Agent-System-Operations/commits/main)
-[![Tests](https://img.shields.io/badge/tests-198%20passing-22BA5A?logo=pytest)](https://github.com/Anandhasasidharan/AgentOps-Agent-System-Operations/actions)
 [![Docker Pulls](https://img.shields.io/docker/pulls/asd492/agentops?logo=docker)](https://hub.docker.com/u/asd492)
 
 ---
@@ -188,7 +187,7 @@ Five application services are built and deployed. Docker Compose additionally ru
 
 ### Cross-Cutting
 - **Per-tenant rate limiting** — in-memory sliding window (60s), configurable via `RATE_LIMIT_RPM`, applied to CB/Chaos/SLO
-- **CI/CD pipeline** — 3 jobs (test 5-matrix → lint → Docker build+push to `asd492/agentops`)
+- **CI/CD pipeline** — test matrix (all 10 packages), clean-venv install, pinned lint/format, then Docker build+push to `asd492/agentops`
 
 ## 🧭 Part of the portfolio
 
@@ -211,16 +210,17 @@ AgentOps is the runtime-operations layer of a set of AI-agent infrastructure pro
 
 | Service | Tests | Coverage | Gate | Focus |
 |---------|-------|----------|------|-------|
-| Circuit Breaker | 58 | 79% | 75% | DTMC, graph monitor, anomaly engine, policies, API |
+| Circuit Breaker | 88 | 82% | 75% | DTMC, graph monitor, anomaly engine, typed policies, closed loop, API |
 | Chaos Toolkit | 63 | 83% | 70% | Scenario proposer, refine, experiments, resilience scoring |
-| SLO Platform | 35 | 80% | 80% | OTel extraction, GenAI semconv, SLO evaluation, trust score |
+| SLO Platform | 36 | 80% | 80% | OTel extraction, GenAI semconv, SLO evaluation, trust score |
 | Dashboard | 1 | — | — | Health aggregation routes |
 | Gateway | 8 | — | — | WebSocket bridge, auth |
 | Core | 10 | — | — | Rate limiter, seed and docs contracts |
 | Events | 11 | — | — | Event models, NATS publisher |
-| SDK | 5 | — | — | Client SDK |
-| LangChain | 7 | — | — | Callback handler, tool wrapper |
-| **Total** | **198** | — | — | |
+| SDK | 11 | — | — | Client SDK, fail mode |
+| LangChain | 10 | — | — | Callback handler, tool wrapper, fail mode |
+| Engine | 7 | — | — | Policy blob compiler, Python reference engine |
+| **Total** | **245** | — | — | |
 
 ```bash
 # Run every package's suite
@@ -280,6 +280,7 @@ Per-tenant in-memory sliding window (60s), applied to Circuit Breaker, Chaos Too
 | `API_KEY` | `dev-api-key` | Seed tenant slug; seed writes the full `slug:token` key to `.agentops.env` |
 | `OTEL_EXPORTER_ENDPOINT` | `http://localhost:8000/v1/traces` | CB, Chaos |
 | `RATE_LIMIT_RPM` | `60` | CB, Chaos, SLO |
+| `AGENTOPS_FAIL_MODE` | `closed` | SDK, LangChain (safety path) |
 | `LOG_LEVEL` | `info` | All |
 
 ## 🗺️ Project Structure

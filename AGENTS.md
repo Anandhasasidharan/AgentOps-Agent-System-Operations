@@ -16,11 +16,11 @@ pip install -e agent-circuit-breaker/"[dev]"
 | Seed demo | `make demo` (or `python scripts/seed.py`) |
 | Test one service | `cd agent-circuit-breaker && python -m pytest -x` |
 | Test all | `make test` |
-| Lint | `ruff check agent-circuit-breaker/src agent-chaos-toolkit/src agent-slo-platform/src dashboard/src agent-gateway/src agentops-events/src agentops-sdk/src` |
-| Format check | `black --check <same paths>` |
+| Lint | `make lint` (pinned `ruff==0.16.10`) |
+| Format check | `make format-check` (pinned `black==26.10.0`) |
 
 ## Repo structure
-- **9 packages**, each in its own dir, all use `src/` layout
+- **9 Python packages** (plus optional `agentops-engine`), each in its own dir, all use `src/` layout
 - Each has `tests/` inside its package dir (root `tests/` is empty, ignore it)
 - Single `Dockerfile` at root builds all images via `ARG SERVICE`
 - Root `pyproject.toml` has no packages of its own — just tool config

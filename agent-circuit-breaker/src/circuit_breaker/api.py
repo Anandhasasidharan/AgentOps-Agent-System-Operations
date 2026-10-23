@@ -25,7 +25,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from circuit_breaker.config import Settings
-from circuit_breaker.db import engine, get_db
+from circuit_breaker.db import AsyncSessionLocal, engine, get_db
 from circuit_breaker.graph_monitor import get_graph
 from circuit_breaker.incident_engine import get_active_incidents, resolve_incident
 from circuit_breaker.kill_switch import (
@@ -50,6 +50,7 @@ from circuit_breaker.models import (
     Policy,
     ToolCall,
 )
+from circuit_breaker.policy_conditions import validate_conditions
 from circuit_breaker.predictor import get_prediction
 from circuit_breaker.proxy import intercept_tool_call
 from circuit_breaker.rollback_engine import execute_rollback
@@ -79,38 +80,69 @@ async def _pub(event: Any):
         events_dropped_total.labels(reason="publish_failed", service="circuit-breaker").inc()
 
 
-async def handle_slo_breach(msg):
+async def create_lockdown_policy(
+    session: AsyncSession,
+    tenant_id: uuid.UUID,
+    agent_id: str,
+) -> Policy | None:
+    """Create an immediate block policy scoped to one agent.
+
+    Returns ``None`` when the policy already exists. The policy blocks every
+    tool for that agent until an operator disables or deletes it.
+    """
+    existing = await session.execute(
+        select(Policy).where(
+            Policy.tenant_id == tenant_id,
+            Policy.name == f"auto-lockdown-{agent_id}",
+            Policy.enabled.is_(True),
+        )
+    )
+    if existing.scalar_one_or_none():
+        return None
+
+    policy = Policy(
+        tenant_id=tenant_id,
+        name=f"auto-lockdown-{agent_id}",
+        description=f"Auto-tightened after SLO breach for {agent_id}",
+        enabled=True,
+        priority=100,
+        policy_type="tool_blocklist",
+        conditions=validate_conditions("tool_blocklist", {"tools": ["*"], "agent_id": agent_id}),
+        action="block",
+    )
+    session.add(policy)
+    await session.commit()
+    await session.refresh(policy)
+    return policy
+
+
+async def handle_slo_breach(msg, session_factory=None):
+    """Turn an SLO breach event into an agent-scoped lockdown policy."""
     try:
         data = json.loads(msg.data.decode())
         payload = data.get("payload", {})
         agent_id = payload.get("agent_id") or data.get("agent_id")
         if not agent_id:
+            logger.warning(
+                "slo_breach_without_agent_id",
+                extra={"event": "agentops.slo_breach_ignored", "reason": "missing_agent_id"},
+            )
             return
-        from circuit_breaker.db import get_db
-
-        async with get_db() as session:
-            existing = await session.execute(
-                select(Policy).where(
-                    Policy.tenant_id == uuid.UUID(data["tenant_id"]),
-                    Policy.name == f"auto-lockdown-{agent_id}",
-                    Policy.enabled,
+        tenant_id = uuid.UUID(str(data["tenant_id"]))
+        factory = session_factory or AsyncSessionLocal
+        async with factory() as session:
+            policy = await create_lockdown_policy(session, tenant_id, agent_id)
+            if policy:
+                logger.info(
+                    "auto-created lockdown policy for %s after SLO breach",
+                    agent_id,
+                    extra={
+                        "event": "agentops.auto_lockdown_created",
+                        "tenant_id": str(tenant_id),
+                        "agent_id": agent_id,
+                        "policy_id": str(policy.id),
+                    },
                 )
-            )
-            if existing.scalar_one_or_none():
-                return
-            policy = Policy(
-                tenant_id=uuid.UUID(data["tenant_id"]),
-                name=f"auto-lockdown-{agent_id}",
-                description=f"Auto-tightened after SLO breach for {agent_id}",
-                enabled=True,
-                priority=100,
-                policy_type="rate_limit",
-                conditions={"max_calls_per_minute": 5},
-                action="block",
-            )
-            session.add(policy)
-            await session.commit()
-            logger.info("auto-created lockdown policy for %s after SLO breach", agent_id)
     except Exception:
         logger.exception("error handling SLO breach in CB")
 

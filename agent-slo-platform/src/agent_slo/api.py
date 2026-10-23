@@ -285,6 +285,7 @@ async def status(
                         "slo_id": str(s["slo_id"]),
                         "slo_name": slo_name,
                         "sli_name": s["sli_name"],
+                        "agent_id": str(slo_obj.agent_id) if slo_obj.agent_id else None,
                         "target": s["target"],
                         "current_value": s["current_value"],
                         "budget_remaining": s["budget_remaining"],

@@ -20,16 +20,24 @@ jobs:
         service:
           - path: agentops-core
             module: agentops_core
+          - path: agentops-events
+            module: agentops_events
           - path: agent-circuit-breaker
             module: circuit_breaker
           - path: agent-chaos-toolkit
             module: chaos_toolkit
           - path: agent-slo-platform
             module: agent_slo
+          - path: dashboard
+            module: dashboard
+          - path: agent-gateway
+            module: gateway
           - path: agentops-sdk
             module: agentops
-          - path: agentops-events
-            module: agentops_events
+          - path: agentops-langchain
+            module: agentops_langchain
+          - path: agentops-engine
+            module: agentops_engine
     steps:
       - uses: actions/checkout@v4
 
@@ -44,10 +52,43 @@ jobs:
           pip install -e ${{ matrix.service.path }}/
           pip install -e ${{ matrix.service.path }}/"[dev]"
 
+      - name: Install circuit breaker for engine tests
+        if: matrix.service.path == 'agentops-engine'
+        run: pip install -e agent-circuit-breaker/
+
       - name: Run tests
         run: |
           cd ${{ matrix.service.path }}
           python -m pytest -x --cov=${{ matrix.service.module }} --cov-report=term-missing
+
+  clean-install:
+    name: Clean venv install and full test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install and test in a brand-new virtualenv
+        run: |
+          python -m venv /tmp/agentops-clean
+          . /tmp/agentops-clean/bin/activate
+          python -m pip install --upgrade pip
+          pip install -e agentops-core/ -e agentops-events/
+          pip install -e agent-circuit-breaker/"[dev]" \
+                      -e agent-chaos-toolkit/"[dev]" \
+                      -e agent-slo-platform/"[dev]" \
+                      -e dashboard/"[dev]" \
+                      -e agent-gateway/"[dev]" \
+                      -e agentops-sdk/"[dev]" \
+                      -e agentops-langchain/"[dev]" \
+                      -e agentops-engine/"[dev]"
+          for pkg in agentops-core agentops-events agent-circuit-breaker \
+                     agent-chaos-toolkit agent-slo-platform dashboard \
+                     agent-gateway agentops-sdk agentops-langchain agentops-engine; do
+            echo "=== $pkg ==="
+            (cd "$pkg" && python -m pytest -x)
+          done
 
   lint:
     name: Lint and type-check
@@ -66,14 +107,23 @@ jobs:
           pip install -e agent-chaos-toolkit/"[dev]"
           pip install -e agent-slo-platform/"[dev]"
           pip install -e dashboard/"[dev]"
-          pip install -e agentops-sdk/"[dev]"
           pip install -e agent-gateway/"[dev]"
+          pip install -e agentops-sdk/"[dev]"
+          pip install -e agentops-langchain/"[dev]"
+          pip install -e agentops-engine/"[dev]"
+          pip install ruff==0.16.10 black==26.10.0
 
       - name: Ruff
-        run: ruff check agentops-events/src agent-gateway/src agent-circuit-breaker/src agent-chaos-toolkit/src agent-slo-platform/src dashboard/src agentops-sdk/src
+        run: |
+          ruff check agentops-core/src agentops-events/src agent-gateway/src \
+            agent-circuit-breaker/src agent-chaos-toolkit/src agent-slo-platform/src \
+            dashboard/src agentops-sdk/src agentops-langchain/src agentops-engine/src
 
       - name: Black check
-        run: black --check agentops-events/src agent-gateway/src agent-circuit-breaker/src agent-chaos-toolkit/src agent-slo-platform/src dashboard/src agentops-sdk/src
+        run: |
+          black --check agentops-core/src agentops-events/src agent-gateway/src \
+            agent-circuit-breaker/src agent-chaos-toolkit/src agent-slo-platform/src \
+            dashboard/src agentops-sdk/src agentops-langchain/src agentops-engine/src
 
   build:
     name: Build Docker images

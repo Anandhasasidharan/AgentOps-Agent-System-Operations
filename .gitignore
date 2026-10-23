@@ -5,6 +5,10 @@ __pycache__/
 .venv*/
 venv/
 *.so
+*.o
+*.a
+*.dylib
+*.dll
 
 # IDE
 .vscode/

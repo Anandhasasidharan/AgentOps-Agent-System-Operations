@@ -1,4 +1,4 @@
-.PHONY: setup dev demo test test-engine lint format-check clean demo-events
+.PHONY: setup dev demo test test-engine lint format-check clean demo-events guarded-demo durable-demo closed-loop-demo
 
 setup:
 	pip install -e agentops-core/
@@ -50,3 +50,15 @@ clean:
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 	find . -type d -name .pytest_cache -exec rm -rf {} + 2>/dev/null || true
 	find . -type d -name \*.egg-info -exec rm -rf {} + 2>/dev/null || true
+
+# Real HTTP demo with disposable SQLite; no Docker or LLM key required.
+guarded-demo:
+	python examples/guarded_agent.py
+
+# Requires NATS_SERVER_BINARY pointing to a local nats-server.
+durable-demo:
+	python examples/durable_breach.py
+
+# Five-service public API workflow, including scheduled enforcement.
+closed-loop-demo:
+	python examples/closed_loop.py

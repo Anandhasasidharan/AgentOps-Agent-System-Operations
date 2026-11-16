@@ -109,7 +109,13 @@ class ExecutionGraph:
 
 
 _graph = ExecutionGraph()
+_tenant_graphs: dict[str, ExecutionGraph] = {}
 
 
-def get_graph() -> ExecutionGraph:
-    return _graph
+def get_graph(tenant_id=None) -> ExecutionGraph:
+    if tenant_id is None:
+        return _graph
+    key = str(tenant_id)
+    if key not in _tenant_graphs:
+        _tenant_graphs[key] = ExecutionGraph()
+    return _tenant_graphs[key]

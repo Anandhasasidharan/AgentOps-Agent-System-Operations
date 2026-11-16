@@ -1,15 +1,14 @@
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 from collections import deque
-from datetime import datetime
+from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 
 import httpx
-from agentops_events import AgentOpsEvent, create_nats_client
-from agentops_events.models import ALL_TOPICS
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from agentops_events import ALL_TOPICS, AgentOpsEvent, create_nats_client
+from fastapi import FastAPI, Header, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from prometheus_client import generate_latest
@@ -25,22 +24,38 @@ from .metrics import (
 logger = logging.getLogger(__name__)
 
 settings = Settings()
-app = FastAPI(title="AgentOps Gateway")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await listen_nats()
+    yield
+    if nats_conn:
+        await nats_conn.close()
+
+
+app = FastAPI(title="AgentOps Gateway", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 nats_conn = None
 event_buffer: deque[dict] = deque(maxlen=settings.event_buffer_size)
-ws_clients: set[WebSocket] = set()
+ws_clients: dict[WebSocket, str] = {}
 
 
-async def _validate_key(api_key: str) -> bool:
+async def _validate_key(api_key: str) -> str | None:
+    if not api_key:
+        return None
     slo_url = settings.slo_url.rstrip("/")
     try:
-        async with httpx.AsyncClient() as c:
-            r = await c.get(f"{slo_url}/api/v1/tenants/me", headers={"X-API-Key": api_key})
-            return r.status_code == 200
-    except Exception:
-        return False
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            response = await client.get(
+                f"{slo_url}/api/v1/tenants/me", headers={"X-API-Key": api_key}
+            )
+            response.raise_for_status()
+            tenant_id = response.json().get("id")
+            return str(tenant_id) if tenant_id else None
+    except (httpx.HTTPError, ValueError, AttributeError):
+        return None
 
 
 async def broadcast(event: AgentOpsEvent):
@@ -48,13 +63,15 @@ async def broadcast(event: AgentOpsEvent):
     event_buffer.append(data)
     events_buffer_size.set(len(event_buffer))
     dead: list[WebSocket] = []
-    for ws in ws_clients:
+    for ws, tenant_id in list(ws_clients.items()):
+        if tenant_id != str(event.tenant_id):
+            continue
         try:
             await ws.send_json(data)
         except Exception:
             dead.append(ws)
     for ws in dead:
-        ws_clients.discard(ws)
+        ws_clients.pop(ws, None)
     if dead:
         events_dropped_total.labels(reason="dead_client", service="gateway").inc(len(dead))
     ws_connections.set(len(ws_clients))
@@ -83,17 +100,6 @@ async def listen_nats():
         logger.info("subscribed to %s", topic)
 
 
-@app.on_event("startup")
-async def startup():
-    asyncio.ensure_future(listen_nats())
-
-
-@app.on_event("shutdown")
-async def shutdown():
-    if nats_conn:
-        await nats_conn.close()
-
-
 @app.get("/health")
 async def health():
     return {
@@ -110,27 +116,32 @@ async def metrics():
 
 
 @app.get("/api/v1/events")
-async def get_events(since: str | None = None, x_api_key: str | None = None):
-    if x_api_key and not await _validate_key(x_api_key):
+async def get_events(
+    since: str | None = None, x_api_key: str = Header(default="", alias="X-API-Key")
+):
+    tenant_id = await _validate_key(x_api_key)
+    if not tenant_id:
         raise HTTPException(status_code=401, detail="Invalid API key")
+    result = [e for e in event_buffer if str(e["tenant_id"]) == tenant_id]
     if since:
         try:
             since_dt = datetime.fromisoformat(since)
+            if since_dt.tzinfo is None:
+                since_dt = since_dt.replace(tzinfo=timezone.utc)
         except ValueError:
             return JSONResponse({"error": "invalid since format, use ISO 8601"}, status_code=400)
-        result = [e for e in event_buffer if e["timestamp"] >= since_dt.isoformat()]
-    else:
-        result = list(event_buffer)
+        result = [e for e in result if datetime.fromisoformat(e["timestamp"]) >= since_dt]
     return result
 
 
 @app.websocket("/ws")
 async def websocket_endpoint(ws: WebSocket, api_key: str | None = None):
-    if api_key and not await _validate_key(api_key):
+    tenant_id = await _validate_key(api_key or "")
+    if not tenant_id:
         await ws.close(code=4001)
         return
     await ws.accept()
-    ws_clients.add(ws)
+    ws_clients[ws] = tenant_id
     ws_connections.set(len(ws_clients))
     try:
         while True:
@@ -140,5 +151,5 @@ async def websocket_endpoint(ws: WebSocket, api_key: str | None = None):
     except WebSocketDisconnect:
         pass
     finally:
-        ws_clients.discard(ws)
+        ws_clients.pop(ws, None)
         ws_connections.set(len(ws_clients))

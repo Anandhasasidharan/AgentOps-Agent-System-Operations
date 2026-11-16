@@ -67,6 +67,71 @@
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
+## Runnable enforcement example
+
+After `make setup`, run `make guarded-demo`. This starts two temporary localhost
+services with SQLite, creates a tenant and policy, permits a safe tool, blocks a
+dangerous tool, and verifies fail-closed behavior after stopping the breaker.
+No Docker, model credentials, or existing tenant key are required. Processes and
+temporary data are cleaned up on exit.
+
+The dashboard now requires authentication: set `API_KEY` to your generated tenant
+key and log in using any username and that key as the password. After seeding:
+
+```bash
+set -a; . ./.agentops.env; set +a
+docker compose up -d --force-recreate dashboard
+```
+
+Gateway history requires `X-API-Key`; WebSocket connections require `?api_key=`.
+Both deliver only the authenticated tenant's events. `GATEWAY_URL` is the internal
+server URL; `GATEWAY_PUBLIC_URL` is the browser-reachable URL (localhost:8004 in
+local Compose). Serve production traffic over TLS.
+
+SLOs are evaluated every 30 seconds independently of dashboard requests. Set
+`SLO_EVALUATION_INTERVAL_SECONDS=0` to disable the worker. Use the agent UUID
+returned by the SLO API consistently in intercept calls and agent-scoped SLOs.
+Run one SLO evaluator replica until distributed scheduling is implemented.
+
+Production Compose requires `.env.production`, `DB_PASSWORD`, and
+`GATEWAY_PUBLIC_URL`. Load the variables before invoking Compose so interpolation
+can read them. URL-encode special characters in database passwords in
+`DATABASE_URL`. Container builds and live deployment must be checked on a Docker
+host; this example does not establish detector accuracy.
+
+SLO breach events now use file-backed JetStream storage and a durable lockdown
+consumer. Compose mounts `nats.conf` and persists data in the `natsdata` volume.
+Do not remove this volume when upgrading. Configured NATS must be available at
+SLO/CB startup; leaving `NATS_URL` unset explicitly disables event delivery.
+Events are acknowledged after lockdown and an event receipt commit together.
+Duplicate delivery cannot recreate a policy that an operator has released.
+Other event topics remain best-effort notifications.
+
+SLO creation accepts `agent_id`, the UUID returned by `/api/v1/agents`.
+The API checks that both that agent and the SLI belong to the caller's tenant.
+Use that same UUID in SDK/LangChain intercept calls. Omit the scope only for
+an intentionally tenant-wide SLO; a tenant-wide breach cannot target an agent
+for automatic lockdown. The SDK supports `create_slo(..., agent_id=agent_id)`.
+
+Telemetry uses the original request's full API key. Rejected exports log
+`agentops.telemetry_export_failed` without credentials or input data. Internal
+event-driven chaos runs have no raw API key and visibly skip telemetry.
+
+Verify with a local NATS 2.10 server (no Docker required):
+
+```bash
+NATS_SERVER_BINARY=/path/to/nats-server make durable-demo
+NATS_SERVER_BINARY=/path/to/nats-server make closed-loop-demo
+```
+
+The check publishes before a consumer exists, simulates a temporary enforcement
+failure, and restarts the broker and consumer using the same storage. CI runs
+this check before building images. Storage is bounded to seven days and 1 GiB;
+full storage rejects new events. This provides recovery for broker-acknowledged
+breaches, not a transactional outbox: a producer crash before acknowledgement
+can still lose an event. Receipt retention and schema migration remain follow-up
+work; never drop receipts while matching broker messages may be redelivered.
+
 ## ⚡ Quick Start
 
 ```bash

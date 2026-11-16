@@ -71,10 +71,28 @@ async def test_setup_demo(sdk, respx_mock):
     respx_mock.post("http://localhost:8001/api/v1/policies").respond(
         200, json={"id": "p1", "name": "block-dangerous-commands"}
     )
-    respx_mock.post("http://localhost:8002/api/v1/scenarios/seed").respond(
-        200, json=[{"id": "s1"}]
-    )
+    respx_mock.post("http://localhost:8002/api/v1/scenarios/seed").respond(200, json=[{"id": "s1"}])
     result = await sdk.setup_demo()
     assert result["tenant"]["slug"] == "demo"
     assert result["scenarios_count"] == 1
     await sdk.close()
+
+
+async def test_create_slo_preserves_agent_scope():
+    import json
+    import uuid
+    import httpx
+    import respx
+    from agentops import AgentOpsSDK
+
+    agent_id, sli_id = uuid.uuid4(), uuid.uuid4()
+    with respx.mock:
+        route = respx.post("http://localhost:8000/api/v1/slos").mock(
+            return_value=httpx.Response(201, json={"id": "slo"})
+        )
+        sdk = AgentOpsSDK(api_key="tenant:key")
+        try:
+            await sdk.create_slo(sli_id, "scoped", 0.95, agent_id=agent_id)
+        finally:
+            await sdk.close()
+        assert json.loads(route.calls.last.request.content)["agent_id"] == str(agent_id)

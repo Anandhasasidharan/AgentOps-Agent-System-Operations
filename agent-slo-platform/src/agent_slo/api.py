@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import logging
 import uuid
 from contextlib import asynccontextmanager
 from typing import Any
@@ -13,6 +15,7 @@ from agentops_events import (
     TOPIC_SLO_ALERT,
     TOPIC_SLO_BREACH,
     create_nats_client,
+    ensure_breach_stream,
     make_event,
     publish_event,
 )
@@ -24,7 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from agent_slo.alerts import evaluate_alerts, resolve_alerts
 from agent_slo.compliance import generate_owasp_report
 from agent_slo.config import Settings
-from agent_slo.db import engine, get_db
+from agent_slo.db import AsyncSessionLocal, engine, get_db
 from agent_slo.engine import evaluate_all_slos
 from agent_slo.metrics import (
     add_metrics_route,
@@ -73,16 +76,49 @@ async def _pub(event: Any):
         events_dropped_total.labels(reason="publish_failed", service="slo-platform").inc()
 
 
+async def evaluate_tenants_once():
+    async with AsyncSessionLocal() as session:
+        tenants = list((await session.execute(select(Tenant))).scalars().all())
+    for tenant in tenants:
+        try:
+            async with AsyncSessionLocal() as session:
+                await status(tenant=tenant, agent_id=None, session=session)
+        except Exception:
+            logging.getLogger(__name__).exception("Scheduled SLO evaluation failed")
+
+
+async def evaluation_loop():
+    while True:
+        try:
+            await evaluate_tenants_once()
+        except Exception:
+            logging.getLogger(__name__).exception("SLO evaluator unavailable")
+        await asyncio.sleep(settings.slo_evaluation_interval_seconds)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global nats_nc
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    nats_nc = await create_nats_client(settings.nats_url)
-    yield
-    if nats_nc:
-        await nats_nc.close()
-    await engine.dispose()
+    task = None
+    nats_nc = None
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        nats_nc = await create_nats_client(settings.nats_url)
+        if settings.nats_url and nats_nc is None:
+            raise RuntimeError("Configured NATS is unavailable; enforcement events require NATS")
+        if nats_nc:
+            await ensure_breach_stream(nats_nc)
+        if settings.slo_evaluation_interval_seconds > 0:
+            task = asyncio.create_task(evaluation_loop())
+        yield
+    finally:
+        if task:
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+        if nats_nc:
+            await nats_nc.close()
+        await engine.dispose()
 
 
 app = FastAPI(title="Agent SLO Platform", version="0.1.0", lifespan=lifespan)
@@ -198,7 +234,32 @@ async def create_slo(
     tenant: Tenant = Depends(get_tenant),
     session: AsyncSession = Depends(get_db),
 ) -> ServiceLevelObjective:
+    sli = (
+        await session.execute(
+            select(ServiceLevelIndicator).where(
+                ServiceLevelIndicator.id == data.sli_id,
+                ServiceLevelIndicator.tenant_id == tenant.id,
+            )
+        )
+    ).scalar_one_or_none()
+    if sli is None:
+        raise HTTPException(status_code=404, detail="SLI not found")
+    agent_id = data.agent_id or sli.agent_id
+    if data.agent_id and sli.agent_id and data.agent_id != sli.agent_id:
+        raise HTTPException(status_code=422, detail="SLO agent must match the SLI agent")
+    if agent_id:
+        agent = (
+            await session.execute(
+                select(Agent).where(
+                    Agent.id == agent_id,
+                    Agent.tenant_id == tenant.id,
+                )
+            )
+        ).scalar_one_or_none()
+        if agent is None:
+            raise HTTPException(status_code=404, detail="Agent not found")
     slo = ServiceLevelObjective(
+        agent_id=agent_id,
         tenant_id=tenant.id,
         sli_id=data.sli_id,
         name=data.name,

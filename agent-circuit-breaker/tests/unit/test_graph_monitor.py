@@ -58,3 +58,12 @@ class TestExecutionGraph:
         self.graph.record_edge("agent-1", "read_file")
         self.graph.record_edge("agent-2", "execute_command")
         assert self.graph.status()["agents"] == 2
+
+
+def test_tenant_graphs_are_isolated():
+    import uuid
+    from circuit_breaker.graph_monitor import get_graph
+    first, second = uuid.uuid4(), uuid.uuid4()
+    get_graph(first).record_edge("shared-agent", "delete_file")
+    assert get_graph(first).status()["tool_edges"] == 1
+    assert get_graph(second).status()["tool_edges"] == 0

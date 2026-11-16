@@ -8,3 +8,5 @@ class Settings(AgentOpsSettings):
     otel_receiver_path: str = "/v1/traces"
     default_burn_rate_thresholds: list[float] = [0.02, 0.05, 0.10]
     nats_url: str = ""
+
+    slo_evaluation_interval_seconds: float = 30.0

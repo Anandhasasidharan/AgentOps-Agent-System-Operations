@@ -50,9 +50,7 @@ async def test_slo_breach_creates_policy_and_blocks_next_call(session: AsyncSess
     )
 
     policies = list(
-        (await session.execute(select(Policy).where(Policy.tenant_id == tenant_id)))
-        .scalars()
-        .all()
+        (await session.execute(select(Policy).where(Policy.tenant_id == tenant_id))).scalars().all()
     )
     assert len(policies) == 1
     policy = policies[0]
@@ -106,9 +104,7 @@ async def test_lockdown_is_idempotent(session: AsyncSession) -> None:
         )
 
     policies = list(
-        (await session.execute(select(Policy).where(Policy.tenant_id == tenant_id)))
-        .scalars()
-        .all()
+        (await session.execute(select(Policy).where(Policy.tenant_id == tenant_id))).scalars().all()
     )
     assert len(policies) == 1
 
@@ -125,8 +121,44 @@ async def test_breach_without_agent_id_does_not_create_a_tenant_wide_policy(
     )
 
     policies = list(
-        (await session.execute(select(Policy).where(Policy.tenant_id == tenant_id)))
-        .scalars()
-        .all()
+        (await session.execute(select(Policy).where(Policy.tenant_id == tenant_id))).scalars().all()
     )
     assert policies == []
+
+
+@pytest.mark.asyncio
+async def test_redelivery_does_not_recreate_released_lockdown(session):
+    tenant_id = uuid.uuid4()
+    message = _breach_message(tenant_id, "agent-a")
+    data = json.loads(message.data)
+    data["event_id"] = str(uuid.uuid4())
+    message.data = json.dumps(data).encode()
+    factory = lambda: _same_session(session)
+    await handle_slo_breach(message, session_factory=factory)
+    policy = (await session.execute(select(Policy))).scalar_one()
+    policy.enabled = False
+    await session.commit()
+    await handle_slo_breach(message, session_factory=factory)
+    policies = list((await session.execute(select(Policy))).scalars())
+    assert len(policies) == 1
+    assert policies[0].enabled is False
+
+
+@pytest.mark.asyncio
+async def test_failed_lockdown_does_not_commit_receipt(session, monkeypatch):
+    from circuit_breaker.models import EnforcementReceipt
+    from unittest.mock import AsyncMock
+
+    tenant_id = uuid.uuid4()
+    message = _breach_message(tenant_id, "agent-a")
+    data = json.loads(message.data)
+    data["event_id"] = str(uuid.uuid4())
+    message.data = json.dumps(data).encode()
+    monkeypatch.setattr(
+        "circuit_breaker.api.create_lockdown_policy",
+        AsyncMock(side_effect=RuntimeError("write failed")),
+    )
+    with pytest.raises(RuntimeError, match="write failed"):
+        await handle_slo_breach(message, session_factory=lambda: _same_session(session))
+    await session.rollback()
+    assert list((await session.execute(select(EnforcementReceipt))).scalars()) == []

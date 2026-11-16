@@ -249,11 +249,13 @@ class AgentOpsSDK:
         comparator: str = "gt",
         window: str = "30d",
         description: str | None = None,
+        agent_id: str | uuid.UUID | None = None,
     ) -> dict[str, Any]:
         r = await self._client.post(
             f"{self._slo_url}/api/v1/slos",
             json={
                 "sli_id": str(sli_id),
+                "agent_id": str(agent_id) if agent_id is not None else None,
                 "name": name,
                 "description": description,
                 "target": target,

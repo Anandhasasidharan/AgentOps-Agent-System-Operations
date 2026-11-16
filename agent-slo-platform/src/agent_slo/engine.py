@@ -162,6 +162,7 @@ async def evaluate_all_slos(
         statuses.append(
             {
                 "slo_id": slo.id,
+                "agent_id": slo.agent_id,
                 "slo_name": slo.name,
                 "sli_name": slo.sli.name,
                 "window": slo.window,

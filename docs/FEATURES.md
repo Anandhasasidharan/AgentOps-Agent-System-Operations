@@ -1,5 +1,55 @@
 # AgentOps: Feature Map
 
+## Regression fixes — 2026-11-16
+
+- HTTP intercept and chaos requests forward the full authenticated API key to
+  OTLP ingestion. Export failures emit credential-free structured warnings;
+  event-driven chaos runs with no raw credential skip telemetry visibly.
+- SLO creation accepts an optional agent UUID and validates agent and SLI
+  ownership. An agent-scoped SLI supplies the default scope; conflicting scope
+  is rejected. Filtered status includes the agent ID internally.
+- SDK `create_slo` accepts `agent_id`; callers use the SLO API agent UUID in
+  intercept requests so breach policies match the same identity.
+- Dashboard event fields render with text nodes instead of HTML concatenation.
+  Its regression executes delivered JavaScript with malicious event values and
+  rejects unsafe HTML assignments (requires Node.js; installed in dashboard CI).
+- `make closed-loop-demo` runs five real HTTP services, disposable SQLite, and
+  a local NATS broker. It checks authenticated automatic telemetry, public API
+  SLO scope, scheduled breach publication without status polling, and lockdown
+  limited to the intended agent. CI runs it with the durable recovery check.
+
+## Implementation update — 2026-11-16
+
+The older audit rows below are historical and have not all been revalidated.
+Current changes:
+
+- Gateway HTTP and WebSocket authentication is mandatory, resolves tenant IDs,
+  and filters buffered and live events. Header/query contract and isolation
+  regression tests are in `agent-gateway/tests/test_api.py`.
+- Dashboard requires a configured tenant API key through HTTP Basic auth or
+  `X-API-Key`; health and metrics remain public. Regression tests cover denial
+  and authorized access.
+- Execution graphs are separate per tenant, including graph API output.
+- SLO evaluation runs periodically without a dashboard request (default 30s),
+  with per-tenant failure isolation and shutdown cancellation.
+- Production Compose has explicit Uvicorn commands and consistent service ports;
+  database password and public WebSocket URL are required.
+- `make guarded-demo` verifies allow, block, and fail-closed outage behavior over
+  actual localhost HTTP using disposable SQLite and no model credentials.
+
+- SLO breach events now wait for JetStream storage acknowledgements, use stable
+  message IDs across publish retries, and resume a durable queue after restarts.
+  Enforcement receipts commit with policies. Invalid events terminate delivery;
+  transient enforcement errors request redelivery. `examples/durable_breach.py`
+  verifies offline delivery, transient failure retry, and a real broker restart.
+- CI gates image builds on the durable recovery check and clean installation.
+
+Still outstanding: a transactional producer outbox, distributed evaluator
+coordination, comprehensive schema migrations, an MCP proxy, published detector
+benchmarks, native-engine parity, and a verified public deployment. These changes
+do not establish those capabilities.
+
+
 The "what is actually true" document. It is deliberately unflattering.
 
 **Sources and confidence**

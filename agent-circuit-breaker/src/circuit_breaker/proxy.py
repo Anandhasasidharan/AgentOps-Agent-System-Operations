@@ -38,12 +38,12 @@ async def intercept_tool_call(
     duration_ms: float | None = None,
     token_count: int | None = None,
     cost: float | None = None,
-    tenant_slug: str | None = None,
+    api_key: str | None = None,
 ) -> dict[str, Any]:
     ts = datetime.now(timezone.utc)
 
     # 0. Record graph edge
-    get_graph().record_edge(agent_id, tool_name)
+    get_graph(tenant_id).record_edge(agent_id, tool_name)
 
     tool_call = ToolCall(
         tenant_id=tenant_id,
@@ -152,7 +152,7 @@ async def intercept_tool_call(
     asyncio.ensure_future(
         emit_tool_call_span(
             endpoint=settings.otel_exporter_endpoint,
-            tenant_slug=tenant_slug or "",
+            api_key=api_key or "",
             agent_id=agent_id,
             tool_name=tool_name,
             blocked=tool_call.blocked,

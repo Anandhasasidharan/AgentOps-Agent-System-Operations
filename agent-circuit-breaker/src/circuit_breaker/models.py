@@ -181,3 +181,13 @@ class KillSwitch(Base):
     expires_at: Mapped[datetime | None] = mapped_column(nullable=True)
     created_at: Mapped[datetime] = mapped_column(default=now_utc)
     released_at: Mapped[datetime | None] = mapped_column(nullable=True)
+
+
+class EnforcementReceipt(Base):
+    """Committed atomically with lockdown; survives broker redelivery/restarts."""
+
+    __tablename__ = "cb_enforcement_receipts"
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True)
+    event_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(default=now_utc)

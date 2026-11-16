@@ -56,7 +56,7 @@ async def compute_anomaly_score(
     scores["timing"] = timing_score
     details["timing_score"] = timing_score
 
-    graph_score = get_graph().get_anomaly_score(agent_id, tool_call.tool_name)
+    graph_score = get_graph(tenant_id).get_anomaly_score(agent_id, tool_call.tool_name)
     scores["graph"] = graph_score
     details["graph_score"] = graph_score
 

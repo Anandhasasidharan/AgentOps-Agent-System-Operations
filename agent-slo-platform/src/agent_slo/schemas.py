@@ -65,6 +65,7 @@ class SLIOut(BaseModel):
 
 
 class SLOCreate(BaseModel):
+    agent_id: uuid.UUID | None = None
     sli_id: uuid.UUID
     name: str = Field(..., max_length=128)
     description: str | None = Field(default=None, max_length=512)

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging  # noqa: E402
 import uuid
@@ -19,8 +18,9 @@ from agentops_events import (
     create_nats_client,
     make_event,
     publish_event,
+    subscribe_breaches,
 )
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -45,6 +45,7 @@ from circuit_breaker.metrics import (
 from circuit_breaker.models import (
     AgentState,
     Base,
+    EnforcementReceipt,
     Incident,
     KillSwitch,
     Policy,
@@ -70,7 +71,6 @@ logger = logging.getLogger(__name__)
 settings = Settings()
 
 nats_nc = None
-sub_tasks: list[asyncio.Task] = []
 
 
 async def _pub(event: Any):
@@ -111,8 +111,7 @@ async def create_lockdown_policy(
         action="block",
     )
     session.add(policy)
-    await session.commit()
-    await session.refresh(policy)
+    await session.flush()
     return policy
 
 
@@ -120,6 +119,8 @@ async def handle_slo_breach(msg, session_factory=None):
     """Turn an SLO breach event into an agent-scoped lockdown policy."""
     try:
         data = json.loads(msg.data.decode())
+        if not isinstance(data, dict) or not isinstance(data.get("payload", {}), dict):
+            raise ValueError("Breach data and payload must be objects")
         payload = data.get("payload", {})
         agent_id = payload.get("agent_id") or data.get("agent_id")
         if not agent_id:
@@ -128,10 +129,18 @@ async def handle_slo_breach(msg, session_factory=None):
                 extra={"event": "agentops.slo_breach_ignored", "reason": "missing_agent_id"},
             )
             return
+        if not isinstance(agent_id, str):
+            raise ValueError("Breach agent_id must be a string")
         tenant_id = uuid.UUID(str(data["tenant_id"]))
+        event_id = uuid.UUID(str(data["event_id"])) if data.get("event_id") else None
         factory = session_factory or AsyncSessionLocal
         async with factory() as session:
+            if event_id:
+                if await session.get(EnforcementReceipt, (tenant_id, event_id)):
+                    return
+                session.add(EnforcementReceipt(tenant_id=tenant_id, event_id=event_id))
             policy = await create_lockdown_policy(session, tenant_id, agent_id)
+            await session.commit()
             if policy:
                 logger.info(
                     "auto-created lockdown policy for %s after SLO breach",
@@ -145,29 +154,32 @@ async def handle_slo_breach(msg, session_factory=None):
                 )
     except Exception:
         logger.exception("error handling SLO breach in CB")
+        raise
 
 
 async def subscribe_cross_service():
     if not nats_nc:
         return
-    await nats_nc.subscribe("agentops.slo.breach.*", cb=handle_slo_breach)
+    await subscribe_breaches(nats_nc, handle_slo_breach)
     logger.info("CB subscribed to agentops.slo.breach.*")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global nats_nc
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    nats_nc = await create_nats_client(settings.nats_url)
-    task = asyncio.ensure_future(subscribe_cross_service())
-    sub_tasks.append(task)
-    yield
-    for t in sub_tasks:
-        t.cancel()
-    if nats_nc:
-        await nats_nc.close()
-    await engine.dispose()
+    nats_nc = None
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        nats_nc = await create_nats_client(settings.nats_url)
+        if settings.nats_url and nats_nc is None:
+            raise RuntimeError("Configured NATS is unavailable; enforcement events require NATS")
+        await subscribe_cross_service()
+        yield
+    finally:
+        if nats_nc:
+            await nats_nc.close()
+        await engine.dispose()
 
 
 app = FastAPI(title="Agent Circuit Breaker", version="0.1.0", lifespan=lifespan)
@@ -187,6 +199,7 @@ async def health() -> dict[str, str]:
 
 @app.post("/v1/intercept", response_model=InterceptResponse)
 async def intercept(
+    request: Request,
     data: ToolCallIn,
     tenant=Depends(get_tenant),
     session: AsyncSession = Depends(get_db),
@@ -203,7 +216,7 @@ async def intercept(
         duration_ms=data.duration_ms,
         token_count=data.token_count,
         cost=data.cost,
-        tenant_slug=tenant.slug,
+        api_key=request.headers.get("X-API-Key", ""),
     )
     verdict = result.get("decision", "allow")
     tool_calls_total.labels(verdict=verdict, tool_name=data.tool_name).inc()
@@ -262,14 +275,14 @@ async def predict(
 async def graph_status(
     tenant=Depends(get_tenant),
 ) -> dict[str, Any]:
-    return get_graph().status()
+    return get_graph(tenant.id).status()
 
 
 @app.get("/api/v1/graph/anomalies")
 async def graph_anomalies(
     tenant=Depends(get_tenant),
 ) -> list[dict[str, Any]]:
-    return get_graph().anomalies()
+    return get_graph(tenant.id).anomalies()
 
 
 # ─── Policies ──────────────────────────────────────────────────────────────────

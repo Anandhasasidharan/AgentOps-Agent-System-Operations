@@ -2,6 +2,10 @@
 
 ## Regression fixes — 2026-11-16
 
+- Dashboard, Gateway, and LangChain now declare `pytest-cov` in their dev extras,
+  so isolated CI installs support the coverage flags used by the test matrix.
+
+
 - HTTP intercept and chaos requests forward the full authenticated API key to
   OTLP ingestion. Export failures emit credential-free structured warnings;
   event-driven chaos runs with no raw credential skip telemetry visibly.

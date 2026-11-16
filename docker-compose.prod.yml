@@ -81,8 +81,6 @@ services:
     env_file: .env.production
     ports:
       - "8003:8003"
-    environment:
-      GATEWAY_PUBLIC_URL: ${GATEWAY_PUBLIC_URL:?Set GATEWAY_PUBLIC_URL}
     depends_on: [circuit-breaker, slo-platform, chaos-toolkit]
     restart: always
 

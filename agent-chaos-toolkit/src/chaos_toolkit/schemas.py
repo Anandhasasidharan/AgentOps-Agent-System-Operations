@@ -97,6 +97,7 @@ class FaultLogOut(BaseModel):
 
 
 class ResilienceScoreSummary(BaseModel):
+    unobserved: int = 0
     total_experiments: int
     passed: int
     failed: int

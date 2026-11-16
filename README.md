@@ -67,6 +67,43 @@
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
+## Run locally without Docker
+
+After `make setup`, run `make local-start`. A local `nats-server` is required;
+pass its location with `python scripts/run_local.py start --nats-server /path/to/nats-server`.
+The launcher uses Python enforcement, persistent SQLite, and private runtime data
+under `.agentops-runtime/` (gitignored). This is development mode, not a verified
+PostgreSQL production deployment.
+
+Open http://localhost:8003. Log in with any username and the password from
+`.agentops-runtime/api-key`. `make local-status` checks processes;
+`make local-verify` checks the live stack and creates a demo agent that becomes
+locked down after a deliberately failing call. `make local-stop` stops only the
+recorded processes and preserves the database and credentials.
+
+Policy `kill` activates the kill switch until release or its configured TTL.
+Rollback endpoints prepare pending compensation records; they do not execute
+inverse tools. Incidents are marked rolled back only after all records are
+confirmed complete. Chaos fault simulations with no observed agent outcome stay
+unscored (`unobserved` in summaries), rather than counting as successful tests.
+
+Ratio SLO budgets track observed failures, with rolling-window burn equal to
+observed error rate divided by allowed error rate. Default alert multipliers are
+1, 2, and 5. Existing explicitly configured thresholds are preserved. Empty
+windows return `data_available=false` and do not automatically lock down agents.
+Prediction quality and compliance certification are not established by these
+runtime checks. The C engine remains experimental; local-start selects Python.
+
+## Dashboard control plane
+
+The dashboard at port 8003 now includes agent registration and inspection, a
+searchable execution log, typed policy creation/deletion, kill/release controls,
+incident response and pending rollback plans, ratio SLOs and alerts, telemetry
+import, chaos simulations/batches, report downloads, and a live event feed.
+The server retains the tenant key and proxies allowlisted operations; browser
+assets and WebSocket URLs do not contain the raw credential. See the dashboard
+page in the documentation for supported actions and explicit operating limits.
+
 ## Runnable enforcement example
 
 After `make setup`, run `make guarded-demo`. This starts two temporary localhost
@@ -84,17 +121,15 @@ docker compose up -d --force-recreate dashboard
 ```
 
 Gateway history requires `X-API-Key`; WebSocket connections require `?api_key=`.
-Both deliver only the authenticated tenant's events. `GATEWAY_URL` is the internal
-server URL; `GATEWAY_PUBLIC_URL` is the browser-reachable URL (localhost:8004 in
-local Compose). Serve production traffic over TLS.
+Both deliver only the authenticated tenant's events. `GATEWAY_URL` is the internal server URL. The dashboard bridges WebSocket
+events on its own `/ws` route; no public gateway URL or browser API key is needed. Serve production traffic over TLS.
 
 SLOs are evaluated every 30 seconds independently of dashboard requests. Set
 `SLO_EVALUATION_INTERVAL_SECONDS=0` to disable the worker. Use the agent UUID
 returned by the SLO API consistently in intercept calls and agent-scoped SLOs.
 Run one SLO evaluator replica until distributed scheduling is implemented.
 
-Production Compose requires `.env.production`, `DB_PASSWORD`, and
-`GATEWAY_PUBLIC_URL`. Load the variables before invoking Compose so interpolation
+Production Compose requires `.env.production` and `DB_PASSWORD`. Load the variables before invoking Compose so interpolation
 can read them. URL-encode special characters in database passwords in
 `DATABASE_URL`. Container builds and live deployment must be checked on a Docker
 host; this example does not establish detector accuracy.
@@ -224,7 +259,7 @@ Five application services are built and deployed. Docker Compose additionally ru
 
 ### Phase A — Predictive Circuit Breaking (DTMC + PAC)
 - **DTMC-based risk prediction** — models agent tool-call sequences as a Discrete-Time Markov Chain over tool-risk categories (destructive, execution, data, identity, finance, other)
-- **PAC bounds** — Probably Approximately Correct bounds guarantee prediction accuracy with confidence intervals
+- **PAC bounds** — confidence bounds accompany model estimates; real-world prediction accuracy has not been established
 - **Proactive circuit breaking** — predicts risk _before_ the tool executes, not after
 
 ### Phase B — Graph Topology Monitoring

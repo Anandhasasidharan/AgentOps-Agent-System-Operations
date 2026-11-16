@@ -178,7 +178,7 @@ async def refine_proposals(
         f"{', '.join(set(failed_modes)) or 'none'}\n"
         f"Total experiments: {len(experiments)}, "
         f"survival rate: "
-        f"{sum(1 for e in experiments if e.agent_survived) / len(experiments):.0%}\n\n"
+        f"{sum(1 for e in experiments if e.agent_survived) / max(len(experiments), 1):.0%}\n\n"
         f"{REFINE_PROMPT.replace('{existing_modes}', existing_modes_str)}"
     )
 

@@ -62,3 +62,16 @@ durable-demo:
 # Five-service public API workflow, including scheduled enforcement.
 closed-loop-demo:
 	python examples/closed_loop.py
+
+# Persistent local development stack (no Docker).
+local-start:
+	python scripts/run_local.py start
+
+local-stop:
+	python scripts/run_local.py stop
+
+local-status:
+	python scripts/run_local.py status
+
+local-verify:
+	python scripts/verify_local.py

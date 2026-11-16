@@ -49,6 +49,7 @@ from circuit_breaker.models import (
     Incident,
     KillSwitch,
     Policy,
+    RollbackLog,
     ToolCall,
 )
 from circuit_breaker.policy_conditions import validate_conditions
@@ -451,6 +452,9 @@ async def resolve_incident_endpoint(
     tenant=Depends(get_tenant),
     session: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
+    owned = await session.get(Incident, incident_id)
+    if owned is None or owned.tenant_id != tenant.id:
+        raise HTTPException(status_code=404, detail="Incident not found")
     incident = await resolve_incident(session, incident_id)
     if not incident:
         raise HTTPException(status_code=404, detail="Incident not found")
@@ -464,6 +468,9 @@ async def rollback_incident(
     tenant=Depends(get_tenant),
     session: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
+    owned = await session.get(Incident, incident_id)
+    if owned is None or owned.tenant_id != tenant.id:
+        raise HTTPException(status_code=404, detail="Incident not found")
     rollbacks = await execute_rollback(session, incident_id)
     await session.commit()
     return {
@@ -471,6 +478,40 @@ async def rollback_incident(
         "rollback_count": len(rollbacks),
         "rollbacks": [str(r.id) for r in rollbacks],
     }
+
+
+@app.get("/api/v1/incidents/{incident_id}/rollbacks")
+async def incident_rollback_plans(
+    incident_id: uuid.UUID,
+    tenant=Depends(get_tenant),
+    session: AsyncSession = Depends(get_db),
+):
+    incident = await session.get(Incident, incident_id)
+    if incident is None or incident.tenant_id != tenant.id:
+        raise HTTPException(status_code=404, detail="Incident not found")
+    rows = (
+        (
+            await session.execute(
+                select(RollbackLog)
+                .where(RollbackLog.incident_id == incident_id, RollbackLog.tenant_id == tenant.id)
+                .order_by(RollbackLog.created_at)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return [
+        {
+            "id": str(row.id),
+            "type": row.rollback_type,
+            "status": row.status,
+            "details": row.details,
+            "target_id": row.target_id,
+            "created_at": row.created_at,
+            "completed_at": row.completed_at,
+        }
+        for row in rows
+    ]
 
 
 # ─── Agent Status ──────────────────────────────────────────────────────────────

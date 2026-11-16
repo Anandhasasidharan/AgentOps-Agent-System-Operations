@@ -33,8 +33,12 @@ async def test_execute_rollback(session):
     await session.flush()
 
     incident = await create_incident(
-        session, tenant_id, agent_id, "session-1",
-        severity="warning", category="policy_violation",
+        session,
+        tenant_id,
+        agent_id,
+        "session-1",
+        severity="warning",
+        category="policy_violation",
         message="Test incident",
         details={"tool_name": "create_file"},
         action_taken="block",
@@ -71,8 +75,12 @@ async def test_execute_rollback_no_compensation(session):
     await session.flush()
 
     incident = await create_incident(
-        session, tenant_id, agent_id, None,
-        severity="info", category="anomaly",
+        session,
+        tenant_id,
+        agent_id,
+        None,
+        severity="info",
+        category="anomaly",
         message="Test",
         details={},
         action_taken="alert",
@@ -86,3 +94,18 @@ async def test_execute_rollback_no_compensation(session):
     assert len(rollbacks) >= 1
     state = [r for r in rollbacks if r.rollback_type == "state_restore"]
     assert len(state) >= 1
+
+
+@pytest.mark.asyncio
+async def test_pending_rollback_is_not_reported_complete(session):
+    from circuit_breaker.rollback_engine import complete_rollback
+
+    tenant_id = uuid.uuid4()
+    incident = await create_incident(
+        session, tenant_id, "a", None, "warning", "audit", "audit", {}, "block"
+    )
+    logs = await execute_rollback(session, incident.id)
+    assert logs and not incident.rolled_back
+    for entry in logs:
+        await complete_rollback(session, entry.id)
+    assert incident.rolled_back

@@ -91,13 +91,18 @@ async def get_or_create_error_budget(
     slo: ServiceLevelObjective,
     period_start: datetime,
 ) -> ErrorBudget:
-    stmt = select(ErrorBudget).where(
-        ErrorBudget.slo_id == slo.id,
-        ErrorBudget.period_start == period_start,
+    # A single latest snapshot for the rolling window; update it on each evaluation.
+    stmt = (
+        select(ErrorBudget)
+        .where(ErrorBudget.slo_id == slo.id)
+        .order_by(ErrorBudget.period_start.desc())
+        .limit(1)
     )
     result = await session.execute(stmt)
     budget = result.scalar_one_or_none()
     if budget:
+        budget.period_start = period_start
+        budget.period_end = period_start + timedelta(seconds=window_to_seconds(slo.window))
         return budget
 
     window_seconds = window_to_seconds(slo.window)
@@ -140,13 +145,13 @@ async def evaluate_all_slos(
             slo.window,
             anchor,
         )
-        is_breaching = not evaluate_slo(value, slo.target, slo.comparator)
+        is_breaching = count > 0 and not evaluate_slo(value, slo.target, slo.comparator)
 
         # budget math
         if slo.comparator == "gt":
-            consumed = max(0.0, slo.target - value)
+            consumed = max(0.0, 1.0 - value) if count else 0.0
         elif slo.comparator == "lt":
-            consumed = max(0.0, value - slo.target)
+            consumed = max(0.0, value) if count else 0.0
         else:
             consumed = abs(value - slo.target)
 
@@ -154,9 +159,11 @@ async def evaluate_all_slos(
         budget.consumed = min(consumed, budget.total_budget)
         budget.remaining = budget.total_budget - budget.consumed
 
-        elapsed_seconds = ((anchor or now_utc()) - start).total_seconds()
-        burn_rate = compute_burn_rate(
-            budget.consumed, window_to_seconds(slo.window), elapsed_seconds
+        # Rolling-window burn is observed error rate / allowed error rate.
+        burn_rate = (
+            consumed / budget.total_budget
+            if budget.total_budget > 0
+            else float(count > 0 and consumed > 0)
         )
 
         statuses.append(

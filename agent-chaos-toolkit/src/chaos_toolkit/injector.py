@@ -136,7 +136,7 @@ async def run_experiment(
 async def evaluate_experiment_result(
     experiment: Experiment,
     expected_behavior: str,
-) -> tuple[bool, float]:
+) -> tuple[bool | None, float | None]:
     if not experiment.injection_successful:
         experiment.agent_survived = False
         experiment.resilience_score = 0.0
@@ -149,8 +149,8 @@ async def evaluate_experiment_result(
 
     survived = experiment.agent_survived
     if survived is None:
-        survived = True
-        experiment.agent_survived = True
+        experiment.resilience_score = None
+        return None, None
 
     behavior_ok = experiment.agent_behavior == expected_behavior if expected_behavior else True
 

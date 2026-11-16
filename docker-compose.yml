@@ -84,7 +84,6 @@ services:
       CHAOS_URL: "http://chaos-toolkit:8002"
       SLO_URL: "http://agent-slo-platform:8000"
       GATEWAY_URL: "http://gateway:8004"
-      GATEWAY_PUBLIC_URL: "${GATEWAY_PUBLIC_URL:-http://localhost:8004}"
       API_KEY: "${API_KEY:-}"
       NATS_URL: "nats://nats:4222"
     depends_on:

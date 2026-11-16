@@ -4,7 +4,7 @@
 
 ## Overview
 
-The DTMC predictor models agent behavior as a Markov chain with 5 states, transitioning based on tool-call risk levels. **PAC (Probably Approximately Correct) bounds** provide statistical guarantees on prediction accuracy.
+The DTMC predictor models agent behavior as a Markov chain with tool-category states and terminal sinks, transitioning based on tool-call risk levels. **Confidence bounds** accompany estimates; real-world prediction-accuracy guarantees have not been established.
 
 ## State Model
 
@@ -57,7 +57,7 @@ Located in `agent-circuit-breaker/src/circuit_breaker/dtmc.py`:
 ### PAC Bounds
 Also in `dtmc.py`:
 - `pac_bound()` — computes VC-dimension-based confidence bounds
-- Provides probabilistic guarantee: `P(|predicted - true| ≤ ε) ≥ 1-δ`
+- Theoretical interpretation under assumptions not validated here: `P(|predicted - true| ≤ ε) ≥ 1-δ`
 - VC dimension = number of states (5) for finite-state DTMC
 
 ### Predictor

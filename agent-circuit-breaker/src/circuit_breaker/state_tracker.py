@@ -49,6 +49,9 @@ async def update_agent_state(
         )
         session.add(state)
 
+    if tool_call.decision == "kill":
+        state.is_killed = True
+
     # mapped_column default doesn't set Python attr; ensure defaults
     state.call_count = (state.call_count or 0) + 1
     state.unique_tools = state.unique_tools or []

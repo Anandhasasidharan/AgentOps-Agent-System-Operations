@@ -19,20 +19,30 @@ TEST_TENANT = uuid.uuid4()
 @pytest.fixture
 async def sample_data(session: AsyncSession):
     for i in range(3):
-        session.add(Scenario(
-            tenant_id=TEST_TENANT, name=f"scenario-{i}",
-            target_type="llm", failure_mode="timeout",
-            expected_behavior="graceful_degradation",
-        ))
-        session.add(Experiment(
-            tenant_id=TEST_TENANT, scenario_id=uuid.uuid4(),
-            scenario_name=f"exp-{i}", target_type="llm",
-            failure_mode="timeout", agent_id="agent-1",
-            status="completed", agent_survived=i < 2,
-            resilience_score=0.7,
-            created_at=datetime.now(timezone.utc),
-            completed_at=datetime.now(timezone.utc),
-        ))
+        session.add(
+            Scenario(
+                tenant_id=TEST_TENANT,
+                name=f"scenario-{i}",
+                target_type="llm",
+                failure_mode="timeout",
+                expected_behavior="graceful_degradation",
+            )
+        )
+        session.add(
+            Experiment(
+                tenant_id=TEST_TENANT,
+                scenario_id=uuid.uuid4(),
+                scenario_name=f"exp-{i}",
+                target_type="llm",
+                failure_mode="timeout",
+                agent_id="agent-1",
+                status="completed",
+                agent_survived=i < 2,
+                resilience_score=0.7,
+                created_at=datetime.now(timezone.utc),
+                completed_at=datetime.now(timezone.utc),
+            )
+        )
     return session
 
 
@@ -68,11 +78,13 @@ class TestBuildPrompt:
 class TestRefineProposals:
     async def test_returns_empty_without_data(self, session: AsyncSession):
         from chaos_toolkit.scenario_proposer import refine_proposals
+
         result = await refine_proposals(session, uuid.uuid4(), "agent-1")
         assert result == []
 
     async def test_fallback_on_llm_failure(self, session: AsyncSession, sample_data):
         from chaos_toolkit.scenario_proposer import refine_proposals
+
         result = await refine_proposals(session, TEST_TENANT, "agent-1")
         assert isinstance(result, list)
 
@@ -86,3 +98,26 @@ class TestProposeScenarios:
         """With no OPENAI_API_KEY, _call_llm returns None gracefully."""
         result = await propose_scenarios(session, TEST_TENANT, "agent-1")
         assert isinstance(result, list)
+
+
+@pytest.mark.asyncio
+async def test_refine_without_experiment_history(session, monkeypatch):
+    import uuid
+    from unittest.mock import AsyncMock
+    from chaos_toolkit.models import Scenario
+    from chaos_toolkit.scenario_proposer import refine_proposals
+
+    tenant_id = uuid.uuid4()
+    session.add(
+        Scenario(
+            tenant_id=tenant_id,
+            name="existing",
+            target_type="tool",
+            failure_mode="crash",
+            config={},
+            expected_behavior="error_handled",
+        )
+    )
+    await session.commit()
+    monkeypatch.setattr("chaos_toolkit.scenario_proposer._call_llm", AsyncMock(return_value=[]))
+    assert await refine_proposals(session, tenant_id, "new-agent") == []

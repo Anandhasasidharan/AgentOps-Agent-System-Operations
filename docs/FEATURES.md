@@ -1,5 +1,40 @@
 # AgentOps: Feature Map
 
+## Modern dashboard — 2026-11-16
+
+- Responsive local control plane with overview, agents, execution log, policies,
+  incidents, reliability, chaos simulations, live events, and reports.
+- Allowlisted same-origin service proxy and private WebSocket bridge; no raw
+  API key in client assets. HttpOnly session cookies, origin checks, CSP, and
+  safe text rendering protect operator actions.
+- Forms support real agent/policy/SLI/SLO/scenario creation, kill/release,
+  intercept checks, incident/alert resolution, telemetry import, batch simulation,
+  and report/event exports. Unsupported operations are explained, not simulated.
+- Rollback plans are inspectable through a tenant-scoped read endpoint. Incident
+  actions now validate tenant ownership; incidents link their originating calls.
+- JUnit exports escape untrusted text and mark unobserved simulations skipped;
+  Markdown reports exclude them from the observed pass rate.
+- Static assets are packaged with the Python wheel. Local Chromium checks cover
+  desktop/mobile layouts and the principal operator workflows.
+
+
+## Operational fixes — 2026-11-16
+
+- Policy kills now activate persistent kill switches; midnight-starting windows match.
+- Rollback plans stay pending and do not mark an incident complete. There is no
+  automatic execution of arbitrary inverse tools.
+- Unobserved chaos outcomes remain unscored and are counted separately; refinement
+  handles empty history. Real-agent fault injection remains unimplemented.
+- Ratio SLO budgets consume observed failures, reuse a rolling snapshot, and expose
+  data availability. Burn is an error-rate multiplier; new default thresholds are
+  1/2/5. No data does not automatically trigger lockdown.
+- Dashboard `/api/health` checks all four upstream apps plus NATS connectivity.
+- `scripts/run_local.py` manages persistent local SQLite/NATS services, guarded by
+  recorded process identities, without touching existing `.agentops.env` credentials.
+- The C binding, measured detection quality, real compensation execution, and
+  compliance certification remain outside the supported local runtime claims.
+
+
 ## Regression fixes — 2026-11-16
 
 - Dashboard, Gateway, and LangChain now declare `pytest-cov` in their dev extras,

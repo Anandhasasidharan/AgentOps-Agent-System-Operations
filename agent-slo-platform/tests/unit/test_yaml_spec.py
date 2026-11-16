@@ -4,7 +4,6 @@ import pytest
 
 from agent_slo.yaml_spec import SLOYaml, parse_yaml, window_to_seconds
 
-
 SLO_YAML = """
 apiVersion: agentops.io/v1
 kind: SLO
@@ -71,3 +70,13 @@ def test_window_to_seconds() -> None:
     assert window_to_seconds("1w") == 604800
     with pytest.raises(ValueError):
         window_to_seconds("invalid")
+
+
+def test_burn_rate_defaults_are_positive_multipliers():
+    from agent_slo.yaml_spec import BurnRateAlertSpec, SLOSpec
+
+    spec = SLOSpec(sli="task_success_rate", target=0.95, comparator="gt", window="7d")
+    assert [a.threshold for a in spec.burn_rate_alerts] == [1, 2, 5]
+    assert BurnRateAlertSpec(threshold=14.4, severity="critical").threshold == 14.4
+    with pytest.raises(ValueError):
+        BurnRateAlertSpec(threshold=float("inf"), severity="critical")

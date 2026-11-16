@@ -77,9 +77,9 @@ Priority-ordered evaluation supporting 8 types:
 | `reasoning_loop` | Block if N consecutive same-tool calls |
 
 ## Rollback Engine
-When an incident is created, rollback can compensate:
+Rollback creates pending compensation plans for operator review; it does not execute inverse tools or restore external state. All plans must be confirmed complete before an incident is marked rolled back. Planned actions include:
 - **Inverse tool map**: `create_file` → `delete_file`, `write_file` → `restore_from_backup`, etc.
-- **State restore**: resets agent's state counters
+- **State restore**: records a proposed state restoration
 - **Cost refund**: logs cost compensation
 
 ## 15 API Endpoints
@@ -100,7 +100,7 @@ When an incident is created, rollback can compensate:
 | `GET` | `/api/v1/kill-switch/{agent}` | Kill switch status |
 | `GET` | `/api/v1/incidents` | Active incidents |
 | `POST` | `/api/v1/incidents/{id}/resolve` | Resolve incident |
-| `POST` | `/api/v1/incidents/{id}/rollback` | Execute rollback |
+| `POST` | `/api/v1/incidents/{id}/rollback` | Prepare rollback plan |
 | `GET` | `/api/v1/agents/{id}/status` | Full agent status |
 
 ## CLI (`cbctl`)

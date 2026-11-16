@@ -52,7 +52,7 @@ AgentOps is a platform of **5 integrated services** for operating AI agents safe
 ## What Makes This Different
 
 ### Phase A — Predictive Circuit Breaking (DTMC + PAC)
-Models agent tool-call sequences as a **Discrete-Time Markov Chain** with 5 states. **PAC bounds** guarantee prediction accuracy with confidence intervals. Predicts risk *before* the tool executes.
+Models agent tool-call sequences as a **Discrete-Time Markov Chain** over tool categories and terminal sinks. Confidence bounds accompany estimates; real-world prediction accuracy is unmeasured. Predicts risk *before* the tool executes.
 
 ### Phase B — Graph Topology Monitoring
 Builds a directed **execution graph** of tool-use sequences in real-time. **Z-score anomaly detection** flags structural deviations >2σ from baseline. Graph factor blends into anomaly scoring at 20% weight.
@@ -61,7 +61,7 @@ Builds a directed **execution graph** of tool-use sequences in real-time. **Z-sc
 Uses an LLM to **generatively propose novel chaos scenarios** from agent traces, tenant config, and experiment history. Proposes 3-5 scenarios per call with configurable diversity.
 
 ### Phase D — Closed-Loop Refinement
-Structured **LLM critique** iterates on proposed scenarios: feasibility check, coverage analysis, edge case identification. Outputs production-ready YAML definitions.
+Structured **LLM critique** iterates on proposed scenarios: feasibility check, coverage analysis, edge case identification. Produces scenario suggestions that require validation.
 
 ### Phase E — OTel GenAI Semantic Conventions
 Extracts `gen_ai.usage.*`, `gen_ai.response.*`, and `gen_ai.eval.*` attributes per OpenTelemetry standards. Handles nested `arrayValue` OTLP fields. Derives prompt/completion/total token SLIs.

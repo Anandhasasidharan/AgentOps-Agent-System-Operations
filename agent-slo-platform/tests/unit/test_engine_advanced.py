@@ -13,7 +13,6 @@ from agent_slo.models import (
 )
 from agent_slo.yaml_spec import window_to_seconds
 
-
 pytestmark = pytest.mark.asyncio
 
 
@@ -31,7 +30,7 @@ async def test_evaluate_all_slos_with_metrics(
     assert status["slo_name"] == "task-success-rate"
     assert status["current_value"] == pytest.approx(0.95, abs=0.01)
     assert status["is_breaching"] is False
-    assert status["budget_consumed"] == pytest.approx(0.0, abs=0.01)
+    assert status["budget_consumed"] == pytest.approx(0.05, abs=0.01)
     assert status["sample_count"] == 100
 
 
@@ -43,20 +42,23 @@ async def test_evaluate_all_slos_breach(
     slo_task_success: ServiceLevelObjective,
 ) -> None:
     from datetime import datetime, timedelta, timezone
+
     # Insert all-failing metrics
     now = datetime.now(timezone.utc)
     metrics = []
     for i in range(10):
-        metrics.append(Metric(
-            tenant_id=tenant.id,
-            agent_id=agent.id,
-            sli_id=sli_task_success.id,
-            timestamp=now - timedelta(minutes=i),
-            value=0.0,
-            count=1,
-            window_start=now - timedelta(minutes=i + 1),
-            window_end=now - timedelta(minutes=i),
-        ))
+        metrics.append(
+            Metric(
+                tenant_id=tenant.id,
+                agent_id=agent.id,
+                sli_id=sli_task_success.id,
+                timestamp=now - timedelta(minutes=i),
+                value=0.0,
+                count=1,
+                window_start=now - timedelta(minutes=i + 1),
+                window_end=now - timedelta(minutes=i),
+            )
+        )
     session.add_all(metrics)
     await session.commit()
 
@@ -72,6 +74,7 @@ async def test_aggregate_sli_threshold_type(
     agent: Agent,
 ) -> None:
     from datetime import datetime, timedelta, timezone
+
     sli = ServiceLevelIndicator(
         tenant_id=tenant.id,
         name="latency_p99",
@@ -85,18 +88,56 @@ async def test_aggregate_sli_threshold_type(
 
     now = datetime.now(timezone.utc)
     for i in range(100):
-        session.add(Metric(
-            tenant_id=tenant.id,
-            agent_id=agent.id,
-            sli_id=sli.id,
-            timestamp=now - timedelta(minutes=i),
-            value=float(i),
-            count=1,
-            window_start=now - timedelta(minutes=i + 1),
-            window_end=now - timedelta(minutes=i),
-        ))
+        session.add(
+            Metric(
+                tenant_id=tenant.id,
+                agent_id=agent.id,
+                sli_id=sli.id,
+                timestamp=now - timedelta(minutes=i),
+                value=float(i),
+                count=1,
+                window_start=now - timedelta(minutes=i + 1),
+                window_end=now - timedelta(minutes=i),
+            )
+        )
     await session.commit()
 
     value, count = await aggregate_sli(session, sli, tenant.id, agent.id, "7d")
     assert value == 99.0  # p99 of 0..99
     assert count == 100
+
+
+async def test_budget_counts_failures_and_reuses_rolling_snapshot(
+    session, tenant, agent, sli_task_success, slo_task_success
+):
+    from datetime import datetime, timedelta, timezone
+    from sqlalchemy import select
+    from agent_slo.models import ErrorBudget
+
+    now = datetime.now(timezone.utc)
+    session.add(
+        Metric(
+            tenant_id=tenant.id,
+            agent_id=agent.id,
+            sli_id=sli_task_success.id,
+            timestamp=now,
+            value=0.96,
+            count=100,
+            window_start=now - timedelta(minutes=1),
+            window_end=now,
+        )
+    )
+    await session.commit()
+    first = (await evaluate_all_slos(session, tenant.id, anchor=now))[0]
+    assert first["budget_consumed"] == pytest.approx(0.04)
+    assert first["burn_rate"] == pytest.approx(0.8)
+    assert first["budget_remaining"] == pytest.approx(0.01)
+    await evaluate_all_slos(session, tenant.id, anchor=now + timedelta(seconds=1))
+    assert len(list((await session.execute(select(ErrorBudget))).scalars())) == 1
+
+
+async def test_no_data_does_not_lock_down_agent(session, tenant, slo_task_success):
+    status = (await evaluate_all_slos(session, tenant.id))[0]
+    assert status["sample_count"] == 0
+    assert status["is_breaching"] is False
+    assert status["burn_rate"] == 0

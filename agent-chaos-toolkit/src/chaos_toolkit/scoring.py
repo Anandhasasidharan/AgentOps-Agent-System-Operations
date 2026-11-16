@@ -36,14 +36,15 @@ async def compute_resilience_score(
         )
 
     total = len(experiments)
-    scores = [e.resilience_score or 0.0 for e in experiments]
+    observed = [e for e in experiments if e.resilience_score is not None]
+    scores = [e.resilience_score for e in observed]
     passed_count = sum(1 for s in scores if s >= 0.7)
-    failed_count = total - passed_count
+    failed_count = len(scores) - passed_count
 
-    avg_score = sum(scores) / total if total > 0 else 0.0
+    avg_score = sum(scores) / len(scores) if scores else 0.0
 
     by_target: dict[str, list[float]] = defaultdict(list)
-    for exp in experiments:
+    for exp in observed:
         by_target[exp.target_type].append(exp.resilience_score or 0.0)
 
     worst_target = None
@@ -54,13 +55,18 @@ async def compute_resilience_score(
             worst_avg = target_avg
             worst_target = target
 
-    recommendations = _generate_recommendations(by_target)
+    recommendations = (
+        _generate_recommendations(by_target)
+        if scores
+        else ["No observed agent outcomes; simulation alone does not measure resilience."]
+    )
 
     return ResilienceScoreSummary(
         total_experiments=total,
         passed=passed_count,
         failed=failed_count,
-        pass_rate=passed_count / total if total > 0 else 0.0,
+        pass_rate=passed_count / len(scores) if scores else 0.0,
+        unobserved=total - len(scores),
         avg_resilience_score=avg_score,
         worst_performing_target=worst_target,
         recommendations=recommendations,

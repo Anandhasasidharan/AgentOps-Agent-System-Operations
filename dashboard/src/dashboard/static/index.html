@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="theme-color" content="#101318" />
+    <title>AgentOps · Control plane</title>
+    <link rel="icon" href="/static/favicon.svg" />
+    <link rel="stylesheet" href="/static/app.css" />
+    <script src="/static/render.js" defer></script>
+    <script src="/static/app.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <aside class="sidebar" id="sidebar">
+      <a class="brand" href="#overview"
+        ><span class="brand-mark">a<span>o</span></span
+        ><span>agentops<span class="brand-dot">.</span></span></a
+      >
+      <div class="workspace">
+        <span class="workspace-avatar">A</span>
+        <div><strong>Agent workspace</strong><small id="tenant-name">Connecting…</small></div>
+      </div>
+      <p class="nav-label">WORKSPACE</p>
+      <nav aria-label="Main navigation">
+        <a href="#overview" data-page="overview" aria-label="Overview"
+          ><span class="nav-icon">▦</span><span>Overview</span
+          ><span class="nav-shortcut">G O</span></a
+        >
+        <a href="#agents" data-page="agents" aria-label="Agents"
+          ><span class="nav-icon">◇</span><span>Agents</span
+          ><span class="nav-count" id="nav-agents">—</span></a
+        >
+        <a href="#calls" data-page="calls" aria-label="Execution log"
+          ><span class="nav-icon">↗</span><span>Execution log</span></a
+        >
+        <a href="#policies" data-page="policies" aria-label="Policies"
+          ><span class="nav-icon">⛨</span><span>Policies</span></a
+        >
+        <a href="#incidents" data-page="incidents" aria-label="Incidents"
+          ><span class="nav-icon">⊙</span><span>Incidents</span
+          ><span class="nav-count danger-count" id="nav-incidents">—</span></a
+        >
+        <a href="#slos" data-page="slos" aria-label="Reliability"
+          ><span class="nav-icon">⌁</span><span>Reliability</span></a
+        >
+        <a href="#chaos" data-page="chaos" aria-label="Chaos lab"
+          ><span class="nav-icon">⚗</span><span>Chaos lab</span><span class="nav-tag">SIM</span></a
+        >
+        <a href="#events" data-page="events" aria-label="Live events"
+          ><span class="nav-icon">≋</span><span>Live events</span><span class="live-dot"></span
+        ></a>
+      </nav>
+      <div class="sidebar-bottom">
+        <div class="system-indicator">
+          <span class="dot" id="system-dot"></span><span id="system-label">Checking systems</span>
+        </div>
+        <a
+          href="#settings"
+          data-page="settings"
+          aria-label="Workspace & reports"
+          class="settings-link"
+          ><span class="nav-icon">⚙</span><span>Workspace & reports</span></a
+        >
+        <div class="profile">
+          <span class="profile-avatar">OP</span>
+          <div><strong>Operator</strong><small>Tenant access</small></div>
+          <span class="profile-dot"></span>
+        </div>
+      </div>
+    </aside>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="breadcrumbs">
+          <button
+            id="menu-toggle"
+            class="icon-button mobile-menu"
+            aria-label="Toggle navigation"
+            aria-expanded="false"
+          >
+            ☰</button
+          ><span class="workspace-crumb">Workspace</span><span class="crumb-separator">/</span
+          ><strong id="breadcrumb">Overview</strong>
+        </div>
+        <div class="topbar-actions">
+          <span class="environment"><span class="dot"></span>Live workspace</span
+          ><span class="top-divider"></span
+          ><button class="icon-button" id="refresh" aria-label="Refresh data" title="Refresh data">
+            ↻</button
+          ><span class="avatar-small">OP</span>
+        </div>
+      </header>
+      <div class="content-wrap">
+        <div id="global-error" class="notice error-notice" hidden role="alert"></div>
+        <main id="main" tabindex="-1">
+          <div class="loading-state">
+            <div class="spinner"></div>
+            <h2>Connecting your workspace</h2>
+            <p>Fetching live service data…</p>
+          </div>
+        </main>
+        <footer class="footer">
+          <span><span class="tiny-mark">◈</span> AGENTOPS CONTROL PLANE</span
+          ><span id="last-updated">Waiting for data</span
+          ><span id="connection-status"><span class="dot"></span>Connecting</span>
+        </footer>
+      </div>
+    </div>
+    <dialog id="modal" aria-labelledby="modal-title">
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow">WORKSPACE ACTION</p>
+          <h2 id="modal-title"></h2>
+        </div>
+        <button type="button" class="icon-button" id="modal-close" aria-label="Close dialog">
+          ×
+        </button>
+      </div>
+      <div id="modal-content"></div>
+    </dialog>
+    <div id="toast-region" class="toast-region" aria-live="polite"></div>
+  </body>
+</html>

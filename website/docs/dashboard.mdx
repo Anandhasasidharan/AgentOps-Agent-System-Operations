@@ -1,34 +1,78 @@
 # Dashboard
 
-**Health aggregation UI** for the AgentOps platform. Displays real-time status of all services in a single page.
+The AgentOps control plane is available on port **8003**. It serves a responsive
+operations interface backed by the running services, with no frontend build or
+external CDN required.
 
-## Features
+## Workspace views
 
-- **Health summary** — live status indicators for Circuit Breaker, Chaos Toolkit, SLO Platform, Gateway, and NATS
-- **Status page** — quick overview of service health at a glance
-- **WebSocket integration** — real-time updates via Gateway (NATS bridge)
+| View | Available operations |
+|---|---|
+| Overview | Live service health, observed call activity, incidents, registered agents, and recent events |
+| Agents | Register identities, inspect execution state and predictions, activate and release kill switches, inspect graph observations |
+| Execution log | Search the latest 100 tool calls, filter decisions, inspect inputs/results, and submit an intercept check |
+| Policies | Create any of the eight supported policy types, inspect conditions, and delete policies with confirmation |
+| Incidents | Inspect and resolve incidents, prepare and inspect pending rollback plans |
+| Reliability | Create indicators and agent-scoped ratio objectives, import OTLP JSON, inspect budgets, and resolve alerts |
+| Chaos lab | Seed or create scenarios, run simulated experiments or batches, inspect results, request optional LLM suggestions, create and export reports |
+| Live events | Search/filter events, inspect payloads, and export the current browser buffer as JSON |
+| Workspace & reports | Tenant identity and configuration/evidence report exports |
 
-## How It Works
+Actions call the service APIs and preserve validation errors. Unavailable resources
+show errors rather than fabricated data. Data refreshes every 20 seconds, with
+WebSocket event updates and HTTP history as a fallback. Counts and activity charts
+are derived from observed records; the execution chart uses the latest call sample.
 
-The dashboard polls or receives WebSocket updates from all backend services, aggregating their `/health` endpoints into a unified view.
+## Authentication and routing
 
-## Port
+Sign in using any username and the tenant API key as the password. API clients can
+instead send `X-API-Key`. The browser receives an HttpOnly, same-site session
+cookie; the raw tenant key is never embedded in HTML or JavaScript. The dashboard
+forwards authenticated service operations through an allowlist and bridges events
+on its own `/ws` route. A public gateway URL is not required.
 
-`8003` (default)
+| Variable | Default | Purpose |
+|---|---|---|
+| `API_KEY` | empty; access denied | Tenant credential used by the dashboard server |
+| `CB_URL` | `http://localhost:8001` | Circuit Breaker |
+| `CHAOS_URL` | `http://localhost:8002` | Chaos Toolkit |
+| `SLO_URL` | `http://localhost:8000` | SLO Platform |
+| `GATEWAY_URL` | `http://localhost:8004` | Internal event gateway |
 
-## Endpoints
+## Dashboard endpoints
 
-| Method | Route | Purpose |
-|--------|-------|---------|
-| `GET` | `/` | Dashboard UI |
-| `GET` | `/health` | Health check |
-| `GET` | `/api/health` | Aggregated health status |
+| Route | Purpose |
+|---|---|
+| `/` | Control plane interface |
+| `/health` | Dashboard process health, public |
+| `/metrics` | Prometheus metrics, public |
+| `/api/health` | Four upstream applications plus NATS connectivity |
+| `/api/snapshot` | Independent workspace resource results and partial errors |
+| `/api/services/{service}/{path}` | Allowlisted authenticated service operations |
+| `/events` | Tenant event history, with explicit upstream failure responses |
+| `/ws` | Authenticated same-origin live event bridge |
 
-## Configuration
+## Operating limits
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `CB_URL` | `http://localhost:8001` | Circuit Breaker URL |
-| `CHAOS_URL` | `http://localhost:8002` | Chaos Toolkit URL |
-| `SLO_URL` | `http://localhost:8000` | SLO Platform URL |
-| `GATEWAY_URL` | `http://localhost:8004` | Gateway URL |
+The dashboard does not start or execute registered agents. Kill-switch release
+does not remove a separate SLO lockdown policy. Policies have create/delete APIs;
+there is no editing or enable/disable endpoint. Rollback creates plans and does
+not execute inverse tools. Simulated chaos outcomes stay unobserved until real
+agent evidence exists; exports mark them unscored or skipped. LLM suggestions
+require server-side provider credentials and can incur provider charges.
+
+The objective form uses the supported ratio model. Predictions are experimental,
+configuration reports do not establish compliance, and event history is bounded.
+Key rotation must be coordinated with runtime configuration and is not exposed as
+an uncoordinated browser action. Gateway event forwarding is live; page resource
+refresh is periodic, and service health is not a deep database-readiness probe.
+
+
+## Local browser verification
+
+With the local services running, install the optional tooling under
+`dashboard/browser-tests` (`npm ci`, then `npx playwright install chromium`) and
+run `npm test` from that directory. The check uses the private local runtime
+credential, creates dedicated verification agents and policies, tests kill and
+release, checks that no key is in the DOM, and captures desktop/mobile previews
+under `.agentops-runtime/browser-qa/`. It does not require Node.js in production.

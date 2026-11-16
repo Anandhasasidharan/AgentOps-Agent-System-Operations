@@ -173,3 +173,18 @@ sloctl report <std>    Generate compliance report (owasp, eu-ai-act)
 - **ErrorBudget** — budget tracking per SLO period
 - **Alert** — burn-rate alert with severity
 - **OtelSpan** — raw ingested span data
+
+
+## Current operational limits
+
+Ratio SLOs consume observed errors even while the objective passes. Burn is the
+observed error rate divided by the allowed error rate over the same rolling
+window. New default multipliers are 1, 2, and 5; explicit existing thresholds
+are unchanged. Budgets are rolling snapshots, not a historical ledger or a
+multi-window burn-rate implementation. Empty windows expose
+`data_available: false` and do not trigger lockdown.
+
+OWASP output reports configured SLO coverage. The EU AI Act endpoint is an
+evidence scaffold. Neither is a compliance certification or independent control
+test. Alerts are stored and published through NATS; external alert delivery is
+not implemented.

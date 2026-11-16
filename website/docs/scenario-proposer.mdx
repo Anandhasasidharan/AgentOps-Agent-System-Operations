@@ -6,6 +6,15 @@
 
 Instead of manually writing all chaos scenarios, the Scenario Proposer uses an LLM to **generatively discover new failure scenarios** based on agent traces, tenant configuration, and past experiment results.
 
+## Current API contract
+
+The running API accepts `agent_id` and `model` and returns `proposals`. Scenario
+count, temperature, input traces, provider URLs, and usage reporting shown in the
+conceptual pipeline below are not supported request options. The implementation
+uses the OpenAI client with a fixed temperature and scenario prompt. Failures can
+return an empty list; proposal quality is not established by local runtime tests.
+Refinement accepts agents with no experiment history.
+
 ## Phase C — Propose
 
 ```

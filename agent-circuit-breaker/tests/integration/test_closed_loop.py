@@ -162,3 +162,80 @@ async def test_failed_lockdown_does_not_commit_receipt(session, monkeypatch):
         await handle_slo_breach(message, session_factory=lambda: _same_session(session))
     await session.rollback()
     assert list((await session.execute(select(EnforcementReceipt))).scalars()) == []
+
+
+@pytest.mark.asyncio
+async def test_policy_kill_persists_until_release(session):
+    from circuit_breaker.kill_switch import check_kill_switch, release_kill_switch
+
+    tenant_id = uuid.uuid4()
+    session.add(
+        Policy(
+            tenant_id=tenant_id,
+            name="kill-dangerous",
+            policy_type="tool_blocklist",
+            conditions={"tools": ["dangerous"]},
+            action="kill",
+            enabled=True,
+        )
+    )
+    await session.commit()
+    first = await intercept_tool_call(session, tenant_id, "agent", None, "dangerous", {})
+    assert first["decision"] == "kill"
+    assert await check_kill_switch(session, tenant_id, "agent")
+    second = await intercept_tool_call(session, tenant_id, "agent", None, "read_file", {})
+    assert second["allowed"] is False
+    await release_kill_switch(session, tenant_id, "agent")
+    await session.commit()
+    third = await intercept_tool_call(session, tenant_id, "agent", None, "read_file", {})
+    assert third["allowed"] is True
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("action", ["resolve", "rollback"])
+async def test_incident_actions_reject_other_tenants(client, session, action):
+    from circuit_breaker.incident_engine import create_incident
+
+    incident = await create_incident(
+        session, uuid.uuid4(), "foreign-agent", None, "warning", "audit", "foreign", {}, "block"
+    )
+    await session.commit()
+    response = await client.post(f"/api/v1/incidents/{incident.id}/{action}")
+    assert response.status_code == 404
+    assert incident.resolved_at is None
+    assert not incident.rolled_back
+
+
+@pytest.mark.asyncio
+async def test_rollback_plans_are_visible_and_tenant_scoped(client, session):
+    policy = await client.post(
+        "/api/v1/policies",
+        json={
+            "name": "plan-ui",
+            "policy_type": "tool_blocklist",
+            "conditions": {"tools": ["write_file"]},
+            "action": "block",
+        },
+    )
+    assert policy.status_code == 201
+    call = await client.post(
+        "/v1/intercept",
+        json={
+            "agent_id": "plan-agent",
+            "tool_name": "write_file",
+            "tool_input": {"path": "/tmp/never-executed"},
+        },
+    )
+    incident_id = call.json()["incident_id"]
+    assert (await client.post(f"/api/v1/incidents/{incident_id}/rollback")).status_code == 200
+    plans = await client.get(f"/api/v1/incidents/{incident_id}/rollbacks")
+    assert plans.status_code == 200
+    assert any(p["type"] == "tool_call_compensation" for p in plans.json())
+    assert all(p["status"] == "pending" for p in plans.json())
+    from circuit_breaker.incident_engine import create_incident
+
+    foreign = await create_incident(
+        session, uuid.uuid4(), "foreign", None, "warning", "audit", "audit", {}, "block"
+    )
+    await session.commit()
+    assert (await client.get(f"/api/v1/incidents/{foreign.id}/rollbacks")).status_code == 404

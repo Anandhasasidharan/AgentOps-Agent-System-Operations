@@ -11,7 +11,9 @@ from chaos_toolkit.models import Experiment
 @pytest.mark.asyncio
 async def test_run_experiment_llm_timeout(session, sample_scenario):
     experiment = await run_experiment(
-        session, sample_scenario.tenant_id, sample_scenario.id,
+        session,
+        sample_scenario.tenant_id,
+        sample_scenario.id,
         "test-agent-1",
     )
     assert experiment.status == "completed"
@@ -23,7 +25,9 @@ async def test_run_experiment_llm_timeout(session, sample_scenario):
 @pytest.mark.asyncio
 async def test_run_experiment_tool_crash(session, sample_tool_scenario):
     experiment = await run_experiment(
-        session, sample_tool_scenario.tenant_id, sample_tool_scenario.id,
+        session,
+        sample_tool_scenario.tenant_id,
+        sample_tool_scenario.id,
         "test-agent-2",
     )
     assert experiment.status == "completed"
@@ -36,7 +40,9 @@ async def test_run_experiment_tool_crash(session, sample_tool_scenario):
 @pytest.mark.asyncio
 async def test_run_experiment_with_overrides(session, sample_scenario):
     experiment = await run_experiment(
-        session, sample_scenario.tenant_id, sample_scenario.id,
+        session,
+        sample_scenario.tenant_id,
+        sample_scenario.id,
         "test-agent-3",
         target_override="tool",
         failure_mode_override="wrong_data",
@@ -48,15 +54,16 @@ async def test_run_experiment_with_overrides(session, sample_scenario):
 @pytest.mark.asyncio
 async def test_run_experiment_creates_fault_log(session, sample_scenario):
     experiment = await run_experiment(
-        session, sample_scenario.tenant_id, sample_scenario.id,
+        session,
+        sample_scenario.tenant_id,
+        sample_scenario.id,
         "test-agent-4",
     )
 
     from chaos_toolkit.models import FaultLog
     from sqlalchemy import select
-    result = await session.execute(
-        select(FaultLog).where(FaultLog.experiment_id == experiment.id)
-    )
+
+    result = await session.execute(select(FaultLog).where(FaultLog.experiment_id == experiment.id))
     logs = result.scalars().all()
     assert len(logs) == 1
     assert logs[0].target_type == "llm"
@@ -122,3 +129,17 @@ async def test_evaluate_injection_failed(session):
     survived, score = await evaluate_experiment_result(exp, "graceful_degradation")
     assert not survived
     assert score == 0.0
+
+
+@pytest.mark.asyncio
+async def test_unobserved_agent_is_not_scored_as_surviving(session):
+    exp = Experiment(
+        tenant_id=uuid.uuid4(),
+        scenario_id=uuid.uuid4(),
+        agent_id="unknown",
+        injection_successful=True,
+        agent_survived=None,
+    )
+    survived, score = await evaluate_experiment_result(exp, "error_handled")
+    assert survived is None and score is None
+    assert exp.agent_survived is None and exp.resilience_score is None

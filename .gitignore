@@ -52,3 +52,9 @@ Thumbs.db
 website/node_modules/
 website/build/
 website/.docusaurus/
+
+# Local running services, database, logs, and credentials
+.agentops-runtime/
+
+# Optional dashboard browser tooling
+dashboard/browser-tests/node_modules/

@@ -357,6 +357,8 @@ async def status(
 
         entries.append(
             StatusEntry(
+                sample_count=s["sample_count"],
+                data_available=s["sample_count"] > 0,
                 slo_id=s["slo_id"],
                 slo_name=slo_name,
                 sli_name=s["sli_name"],

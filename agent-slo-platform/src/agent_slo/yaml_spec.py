@@ -15,7 +15,7 @@ class Metadata(BaseModel):
 
 
 class BurnRateAlertSpec(BaseModel):
-    threshold: float = Field(..., gt=0, le=1)
+    threshold: float = Field(..., gt=0, allow_inf_nan=False)
     severity: str = Field(..., pattern="^(info|warning|critical)$")
 
 
@@ -26,9 +26,9 @@ class SLOSpec(BaseModel):
     window: str = Field(..., max_length=16)
     burn_rate_alerts: list[BurnRateAlertSpec] = Field(
         default_factory=lambda: [
-            BurnRateAlertSpec(threshold=0.02, severity="info"),
-            BurnRateAlertSpec(threshold=0.05, severity="warning"),
-            BurnRateAlertSpec(threshold=0.10, severity="critical"),
+            BurnRateAlertSpec(threshold=1.0, severity="info"),
+            BurnRateAlertSpec(threshold=2.0, severity="warning"),
+            BurnRateAlertSpec(threshold=5.0, severity="critical"),
         ],
         alias="burnRateAlerts",
     )

@@ -17,7 +17,7 @@ from circuit_breaker.anomaly_engine import compute_anomaly_score
 from circuit_breaker.config import Settings
 from circuit_breaker.graph_monitor import get_graph
 from circuit_breaker.incident_engine import create_incident
-from circuit_breaker.kill_switch import check_kill_switch
+from circuit_breaker.kill_switch import activate_kill_switch, check_kill_switch
 from circuit_breaker.models import ToolCall
 from circuit_breaker.policy_engine import PolicyDecision, load_policies
 from circuit_breaker.predictor import compute_proactive_risk
@@ -110,8 +110,21 @@ async def intercept_tool_call(
         session, tenant_id, tool_call, policies, windowed_stats
     )
 
+    if decision.action == "kill":
+        await activate_kill_switch(
+            session,
+            tenant_id,
+            agent_id,
+            decision.reason or "Policy kill",
+            "policy",
+            settings.kill_switch_ttl_seconds,
+        )
     tool_call.decision = decision.action
     tool_call.decision_reason = decision.reason
+
+    # Assign the tool-call ID before linking an incident or rollback plan.
+    session.add(tool_call)
+    await session.flush()
 
     incident_id = None
     if not decision.allowed:

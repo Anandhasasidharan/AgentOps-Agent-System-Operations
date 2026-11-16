@@ -139,7 +139,7 @@ def _matches_policy(
     if policy.policy_type == "time_window":
         start = cond.get("start")
         end = cond.get("end")
-        if start and end:
+        if start is not None and end is not None:
             now = now_utc()
             current_hour = now.hour + now.minute / 60
             if start <= current_hour <= end:

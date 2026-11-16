@@ -74,9 +74,9 @@ class SLOCreate(BaseModel):
     window: str = Field(..., max_length=16)
     burn_rate_alert_thresholds: list[dict[str, Any]] = Field(
         default_factory=lambda: [
-            {"threshold": 0.02, "severity": "info"},
-            {"threshold": 0.05, "severity": "warning"},
-            {"threshold": 0.10, "severity": "critical"},
+            {"threshold": 1.0, "severity": "info"},
+            {"threshold": 2.0, "severity": "warning"},
+            {"threshold": 5.0, "severity": "critical"},
         ]
     )
     risk_budget: dict[str, Any] | None = None
@@ -102,6 +102,8 @@ class SLOut(BaseModel):
 
 
 class StatusEntry(BaseModel):
+    sample_count: int = 0
+    data_available: bool = False
     slo_id: uuid.UUID
     slo_name: str
     sli_name: str

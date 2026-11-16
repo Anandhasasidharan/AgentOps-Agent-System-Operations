@@ -69,7 +69,7 @@ async def execute_rollback(
         rollbacks.append(cost_refund)
 
     if rollbacks:
-        incident.rolled_back = True
+        incident.rolled_back = False
         incident.rollback_id = rollbacks[0].id
         await session.flush()
 
@@ -164,5 +164,16 @@ async def complete_rollback(
     if rollback:
         rollback.status = "completed" if success else "failed"
         rollback.completed_at = now_utc()
+        await session.flush()
+        incident = await session.get(Incident, rollback.incident_id)
+        logs = list(
+            (
+                await session.execute(
+                    select(RollbackLog).where(RollbackLog.incident_id == rollback.incident_id)
+                )
+            ).scalars()
+        )
+        if incident:
+            incident.rolled_back = bool(logs) and all(r.status == "completed" for r in logs)
         await session.flush()
     return rollback

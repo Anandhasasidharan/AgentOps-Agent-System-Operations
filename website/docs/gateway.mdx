@@ -45,7 +45,7 @@ NATS Events                    Gateway (port 8004)
 
 ## Authentication
 
-The dashboard passes its `API_KEY` env var as a WebSocket query parameter: `ws://gateway:8004/ws?api_key=...`
+The dashboard server connects to the gateway with its configured API key. Browser clients connect to the dashboard’s same-origin `/ws` bridge using an HttpOnly session cookie, so the raw key is not embedded in browser URLs. Direct gateway clients still authenticate with the `api_key` query parameter.
 
 ## NATS Topics
 

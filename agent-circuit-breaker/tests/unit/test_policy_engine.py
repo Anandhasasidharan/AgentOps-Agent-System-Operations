@@ -66,14 +66,18 @@ async def test_rate_limit(session, rate_limit_policy):
     )
     # Under limit -> allowed
     decision = await evaluate_policies(
-        session, rate_limit_policy.tenant_id, tool_call,
+        session,
+        rate_limit_policy.tenant_id,
+        tool_call,
         windowed_stats={"call_count": 50},
     )
     assert decision.allowed
 
     # Over limit -> blocked
     decision2 = await evaluate_policies(
-        session, rate_limit_policy.tenant_id, tool_call,
+        session,
+        rate_limit_policy.tenant_id,
+        tool_call,
         windowed_stats={"call_count": 150},
     )
     assert not decision2.allowed
@@ -131,7 +135,9 @@ async def test_reasoning_loop_detection(session):
 
     tc = ToolCall(tenant_id=policy.tenant_id, agent_id="a", tool_name="search")
     decision = await evaluate_policies(
-        session, policy.tenant_id, tc,
+        session,
+        policy.tenant_id,
+        tc,
         windowed_stats={"consecutive_same_tool": 10},
     )
     assert not decision.allowed
@@ -174,3 +180,24 @@ async def test_policy_priority_order(session):
     decision = await evaluate_policies(session, low.tenant_id, tc)
     assert not decision.allowed
     assert "high-priority" in decision.reason
+
+
+def test_window_starting_at_midnight_is_enforced():
+    from datetime import datetime, timezone
+    from unittest.mock import patch
+    from circuit_breaker.models import Policy, ToolCall
+    from circuit_breaker.policy_engine import evaluate_policies_sync
+
+    policy = Policy(
+        name="overnight",
+        policy_type="time_window",
+        action="block",
+        conditions={"start": 0, "end": 6},
+    )
+    with patch(
+        "circuit_breaker.policy_engine.now_utc",
+        return_value=datetime(2026, 11, 16, 0, 30, tzinfo=timezone.utc),
+    ):
+        assert not evaluate_policies_sync(
+            [policy], ToolCall(tool_name="read", agent_id="a")
+        ).allowed

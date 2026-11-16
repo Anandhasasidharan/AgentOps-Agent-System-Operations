@@ -4,7 +4,12 @@ import respx
 import httpx
 import pytest
 
-from agentops_langchain import wrap_tool, AgentBlockedError, AgentOpsCallbackHandler
+from agentops_langchain import (
+    AgentBlockedError,
+    AgentOpsCallbackHandler,
+    AgentOpsUnavailableError,
+    wrap_tool,
+)
 
 
 @respx.mock
@@ -36,15 +41,33 @@ def test_wrap_tool_blocks():
 
 
 @respx.mock
-def test_wrap_tool_cb_unreachable():
+def test_wrap_tool_cb_unreachable_fails_closed_by_default():
     respx.post("http://localhost:8001/v1/intercept").mock(side_effect=httpx.RequestError("connection refused"))
 
     def my_tool(x: str) -> str:
         return "fallback result"
 
     wrapped = wrap_tool(my_tool, "my_tool", "test-key", "http://localhost:8001", "agent-1")
-    result = wrapped("anything")
-    assert result == "fallback result"
+    with pytest.raises(AgentOpsUnavailableError):
+        wrapped("anything")
+
+
+@respx.mock
+def test_wrap_tool_cb_unreachable_can_fail_open():
+    respx.post("http://localhost:8001/v1/intercept").mock(side_effect=httpx.RequestError("connection refused"))
+
+    def my_tool(x: str) -> str:
+        return "fallback result"
+
+    wrapped = wrap_tool(
+        my_tool,
+        "my_tool",
+        "test-key",
+        "http://localhost:8001",
+        "agent-1",
+        fail_mode="open",
+    )
+    assert wrapped("anything") == "fallback result"
 
 
 @pytest.mark.asyncio
@@ -80,14 +103,44 @@ async def test_callback_on_tool_start_blocks():
 
 @pytest.mark.asyncio
 @respx.mock
-async def test_callback_cb_unreachable():
+async def test_callback_cb_unreachable_fails_closed():
     respx.post("http://localhost:8001/v1/intercept").mock(side_effect=httpx.RequestError("timeout"))
 
     handler = AgentOpsCallbackHandler("test-key", "http://localhost:8001", agent_id="agent-1")
+    with pytest.raises(AgentOpsUnavailableError):
+        await handler.on_tool_start(
+            {"name": "search"}, "data",
+            run_id=None, tags=None, metadata=None,
+        )
+    await handler.close()
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_callback_cb_unreachable_can_fail_open():
+    respx.post("http://localhost:8001/v1/intercept").mock(side_effect=httpx.RequestError("timeout"))
+
+    handler = AgentOpsCallbackHandler(
+        "test-key", "http://localhost:8001", agent_id="agent-1", fail_mode="open"
+    )
     await handler.on_tool_start(
         {"name": "search"}, "data",
         run_id=None, tags=None, metadata=None,
     )
+    await handler.close()
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_callback_fails_closed_on_malformed_response():
+    respx.post("http://localhost:8001/v1/intercept").respond(200, json={"decision": "allow"})
+
+    handler = AgentOpsCallbackHandler("test-key", "http://localhost:8001", agent_id="agent-1")
+    with pytest.raises(AgentOpsUnavailableError):
+        await handler.on_tool_start(
+            {"name": "search"}, "data",
+            run_id=None, tags=None, metadata=None,
+        )
     await handler.close()
 
 

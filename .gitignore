@@ -5,6 +5,10 @@ __pycache__/
 .venv*/
 venv/
 *.so
+*.o
+*.a
+*.dylib
+*.dll
 
 # IDE
 .vscode/
@@ -14,6 +18,9 @@ venv/
 
 # Environment
 .env
+.env.production*
+!.env.production.example
+.env.prod
 *.db
 
 # Testing & Coverage
@@ -34,6 +41,9 @@ Thumbs.db
 
 # Temp files
 *.docx
+
+# Seeded local credentials
+.agentops.env
 
 # Docker
 .dockerignore

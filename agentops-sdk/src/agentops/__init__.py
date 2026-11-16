@@ -9,6 +9,6 @@ Usage:
     sdk.run_chaos_experiment(scenario_id="...")
 """
 
-from agentops.client import AgentOpsSDK
+from agentops.client import AgentOpsSDK, AgentOpsUnavailableError
 
-__all__ = ["AgentOpsSDK"]
+__all__ = ["AgentOpsSDK", "AgentOpsUnavailableError"]

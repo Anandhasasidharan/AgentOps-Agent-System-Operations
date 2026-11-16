@@ -9,7 +9,12 @@ from .models import (
     AgentOpsEvent,
     make_event,
 )
-from .nats_client import create_nats_client, publish_event
+from .nats_client import (
+    create_nats_client,
+    ensure_breach_stream,
+    publish_event,
+    subscribe_breaches,
+)
 
 __all__ = [
     "ALL_TOPICS",
@@ -21,6 +26,8 @@ __all__ = [
     "TOPIC_SLO_ALERT",
     "TOPIC_SLO_BREACH",
     "create_nats_client",
+    "ensure_breach_stream",
+    "subscribe_breaches",
     "make_event",
     "publish_event",
 ]

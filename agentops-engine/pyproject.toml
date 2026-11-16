@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68", "wheel", "cffi>=1.17"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agentops-engine"
+version = "0.1.0"
+description = "Native policy engine for AgentOps Circuit Breaker"
+requires-python = ">=3.11"
+dependencies = ["cffi>=1.17"]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.2.0",
+  "pytest-asyncio>=0.23.0",
+  "pytest-cov>=5.0.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+asyncio_mode = "auto"

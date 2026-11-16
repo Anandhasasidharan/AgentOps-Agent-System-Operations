@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import base64
+import json
 import os
+import secrets
 import time
 from contextlib import asynccontextmanager
+from urllib.parse import quote
 
 import httpx
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 
 from dashboard.metrics import (
@@ -18,6 +22,7 @@ CB_URL = os.getenv("CB_URL", "http://localhost:8001")
 CHAOS_URL = os.getenv("CHAOS_URL", "http://localhost:8002")
 SLO_URL = os.getenv("SLO_URL", "http://localhost:8000")
 GATEWAY_URL = os.getenv("GATEWAY_URL", "http://localhost:8004")
+GATEWAY_PUBLIC_URL = os.getenv("GATEWAY_PUBLIC_URL", GATEWAY_URL)
 API_KEY = os.getenv("API_KEY", "")
 
 _client: httpx.AsyncClient | None = None
@@ -34,6 +39,27 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="AgentOps Dashboard", version="0.1.0", lifespan=lifespan)
 
 add_metrics_route(app)
+
+
+@app.middleware("http")
+async def authenticate(request: Request, call_next):
+    if request.url.path in ("/health", "/metrics"):
+        return await call_next(request)
+    password = ""
+    try:
+        scheme, value = request.headers.get("Authorization", "").split(" ", 1)
+        if scheme.lower() == "basic":
+            _, password = base64.b64decode(value, validate=True).decode().split(":", 1)
+    except (ValueError, UnicodeError):
+        pass
+    supplied = request.headers.get("X-API-Key", "") or password
+    if not API_KEY or not secrets.compare_digest(supplied.encode(), API_KEY.encode()):
+        return HTMLResponse(
+            "Authentication required. Use your tenant API key as the password.",
+            status_code=401,
+            headers={"WWW-Authenticate": 'Basic realm="AgentOps"'},
+        )
+    return await call_next(request)
 
 
 @app.get("/health")
@@ -70,9 +96,9 @@ async def index() -> str:
     cb = await _check(CB_URL, "circuit-breaker")
     chaos = await _check(CHAOS_URL, "chaos-toolkit")
     slo = await _check(SLO_URL, "slo-platform")
-    ws_url = GATEWAY_URL.replace("http://", "ws://").replace("https://", "wss://") + "/ws"
+    ws_url = GATEWAY_PUBLIC_URL.replace("http://", "ws://").replace("https://", "wss://") + "/ws"
     if API_KEY:
-        ws_url += f"?api_key={API_KEY}"
+        ws_url += f"?api_key={quote(API_KEY, safe='')}"
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="utf-8"><title>AgentOps Dashboard</title>
@@ -127,7 +153,7 @@ async def index() -> str:
 
 <script>
 (function() {{
-  const wsUrl = "{ws_url}";
+  const wsUrl = {json.dumps(ws_url)};
   const list = document.getElementById('event-list');
   const badge = document.getElementById('conn-badge');
   let ws = null;
@@ -149,10 +175,19 @@ async def index() -> str:
 
     let summary = type.split('.').slice(2).join('.') || type;
     div.className = cls;
-    div.innerHTML = '<span class="time">' + ts + '</span>'
-      + '<span class="type">' + summary + '</span> '
-      + '<span style="color:#94a3b8">' + agent + '</span>'
-      + '<div class="payload">' + JSON.stringify(payload).slice(0, 200) + '</div>';
+    const timeNode = document.createElement('span');
+    timeNode.className = 'time';
+    timeNode.textContent = ts;
+    const typeNode = document.createElement('span');
+    typeNode.className = 'type';
+    typeNode.textContent = summary;
+    const agentNode = document.createElement('span');
+    agentNode.style.color = '#94a3b8';
+    agentNode.textContent = String(agent);
+    const payloadNode = document.createElement('div');
+    payloadNode.className = 'payload';
+    payloadNode.textContent = JSON.stringify(payload).slice(0, 200);
+    div.append(timeNode, typeNode, agentNode, payloadNode);
     list.insertBefore(div, list.firstChild);
     while (list.children.length > 200) list.removeChild(list.lastChild);
   }}

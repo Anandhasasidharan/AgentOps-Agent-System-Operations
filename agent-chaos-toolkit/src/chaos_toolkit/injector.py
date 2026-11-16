@@ -46,7 +46,7 @@ async def run_experiment(
     target_override: str | None = None,
     failure_mode_override: str | None = None,
     config_override: dict[str, Any] | None = None,
-    tenant_slug: str | None = None,
+    api_key: str | None = None,
 ) -> Experiment:
     stmt = select(Scenario).where(Scenario.id == scenario_id, Scenario.tenant_id == tenant_id)
     result = await session.execute(stmt)
@@ -122,7 +122,7 @@ async def run_experiment(
     asyncio.ensure_future(
         emit_tool_call_span(
             endpoint=settings.otel_exporter_endpoint,
-            tenant_slug=tenant_slug or "",
+            api_key=api_key or "",
             agent_id=agent_id,
             tool_name=f"chaos.{target_type}.{failure_mode}",
             blocked=False,
@@ -171,7 +171,7 @@ async def run_batch(
     agent_id: str,
     scenario_ids: list[uuid.UUID] | None = None,
     run_all: bool = False,
-    tenant_slug: str | None = None,
+    api_key: str | None = None,
 ) -> list[Experiment]:
     if run_all:
         stmt = select(Scenario).where(
@@ -192,7 +192,7 @@ async def run_batch(
     experiments: list[Experiment] = []
     for scenario in scenarios:
         experiment = await run_experiment(
-            session, tenant_id, scenario.id, agent_id, tenant_slug=tenant_slug
+            session, tenant_id, scenario.id, agent_id, api_key=api_key
         )
         await evaluate_experiment_result(experiment, scenario.expected_behavior)
         experiments.append(experiment)

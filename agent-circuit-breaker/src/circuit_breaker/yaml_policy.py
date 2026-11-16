@@ -1,25 +1,18 @@
-"""YAML policy specification parser."""
+"""YAML policy specification parser.
+
+The ``conditions`` field is validated with the same typed schemas as the HTTP
+API (``circuit_breaker.policy_conditions``). That keeps ``cbctl apply`` and
+``POST /api/v1/policies`` from accepting different policy shapes.
+"""
 
 from __future__ import annotations
 
 from typing import Any
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field, model_validator
 
-
-class Condition(BaseModel):
-    model_config = ConfigDict(extra="allow")
-
-    match_tool: str | None = Field(default=None, alias="matchTool")
-    tools: list[str] | None = None
-    max_calls: int | None = Field(default=None, alias="maxCalls")
-    max_tokens: int | None = Field(default=None, alias="maxTokens")
-    max_risk_score: float | None = Field(default=None, alias="maxRiskScore")
-    max_anomaly_score: float | None = Field(default=None, alias="maxAnomalyScore")
-    max_consecutive_same_tool: int | None = Field(default=None, alias="maxConsecutiveSameTool")
-    start: float | None = None
-    end: float | None = None
+from circuit_breaker.policy_conditions import PolicyConditionsError, validate_conditions
 
 
 class PolicyAction(BaseModel):
@@ -37,6 +30,14 @@ class PolicySpec(BaseModel):
     enabled: bool = True
     conditions: dict[str, Any] = Field(default_factory=dict)
     action: PolicyAction = Field(default_factory=lambda: PolicyAction(action="block"))
+
+    @model_validator(mode="after")
+    def _validate_conditions(self) -> PolicySpec:
+        try:
+            self.conditions = validate_conditions(self.policy_type, self.conditions)
+        except PolicyConditionsError as exc:
+            raise ValueError(str(exc)) from exc
+        return self
 
 
 class PolicyYaml(BaseModel):

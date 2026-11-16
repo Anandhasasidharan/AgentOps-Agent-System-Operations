@@ -1,0 +1,28 @@
+{
+  "calls": 100000,
+  "e2e_intercept": {
+    "calls_per_sec": 731.0285771871133,
+    "mean_ms": 1.367935579,
+    "p50_ms": 0.9996484999999999,
+    "p95_ms": 1.8261333499999997,
+    "p99_ms": 2.6868511199999903
+  },
+  "elapsed_sec": 49.251326553,
+  "engine_only": {
+    "calls_per_sec": 35443.17941719641,
+    "mean_ms": 0.02821417312,
+    "p50_ms": 0.020292,
+    "p95_ms": 0.05566604999999999,
+    "p99_ms": 0.10649890999999899
+  },
+  "git_sha": "3f7ef29",
+  "machine": {
+    "machine": "x86_64",
+    "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+    "processor": "x86_64",
+    "python": "3.12.3"
+  },
+  "seed": 1,
+  "trace": "results/trace-seed1.jsonl",
+  "tracemalloc_peak_bytes": 31750802
+}

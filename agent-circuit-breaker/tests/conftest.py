@@ -16,6 +16,7 @@ from sqlalchemy.orm import sessionmaker
 from agentops_core.base import Tenant
 from circuit_breaker.api import app, get_tenant
 from circuit_breaker.models import Base, Policy, ToolCall
+from circuit_breaker.db import get_db
 
 
 @pytest.fixture(scope="session")
@@ -58,8 +59,7 @@ async def client(session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
         return Tenant(id=TEST_TENANT_ID, slug="test", name="Test")
 
     app.dependency_overrides[get_tenant] = override_get_tenant
-    app.dependency_overrides.clear()
-    app.dependency_overrides[get_tenant] = override_get_tenant
+    app.dependency_overrides[get_db] = override_get_db
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:

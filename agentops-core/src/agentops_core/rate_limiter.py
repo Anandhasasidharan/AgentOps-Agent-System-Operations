@@ -24,7 +24,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         cutoff = now - 60
         self._windows[slug] = [t for t in self._windows[slug] if t > cutoff]
 
-        if len(self._windows[slug]) >= self.rpm:
+        if self.rpm > 0 and len(self._windows[slug]) >= self.rpm:
             return Response(status_code=429, content="Rate limit exceeded")
 
         self._windows[slug].append(now)

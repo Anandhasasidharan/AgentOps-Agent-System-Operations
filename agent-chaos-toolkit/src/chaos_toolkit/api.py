@@ -12,7 +12,7 @@ from typing import Any
 from agentops_core.auth import make_get_tenant
 from agentops_core.rate_limiter import add_rate_limiter
 from agentops_events import TOPIC_CHAOS_EXPERIMENT, create_nats_client, make_event, publish_event
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -83,7 +83,7 @@ async def handle_cb_incident(msg):
                     uuid.UUID(tenant_id),
                     sc.id,
                     agent_id,
-                    tenant_slug=None,
+                    api_key=None,
                 )
                 await evaluate_experiment_result(exp, sc.expected_behavior)
             await session.commit()
@@ -223,6 +223,7 @@ async def refine(
 
 @app.post("/api/v1/experiments", response_model=ExperimentOut, status_code=201)
 async def create_experiment(
+    request: Request,
     data: ExperimentRunRequest,
     tenant=Depends(get_tenant),
     session: AsyncSession = Depends(get_db),
@@ -235,7 +236,7 @@ async def create_experiment(
         data.target_override,
         data.failure_mode_override,
         data.config_override,
-        tenant_slug=tenant.slug,
+        api_key=request.headers.get("X-API-Key", ""),
     )
     # Get scenario to evaluate result
     stmt = select(Scenario).where(Scenario.id == data.scenario_id)
@@ -271,6 +272,7 @@ async def create_experiment(
 
 @app.post("/api/v1/experiments/batch", response_model=list[ExperimentOut])
 async def batch_experiments(
+    request: Request,
     data: ExperimentBatchRequest,
     tenant=Depends(get_tenant),
     session: AsyncSession = Depends(get_db),
@@ -281,7 +283,7 @@ async def batch_experiments(
         data.agent_id,
         data.scenarios if data.scenarios else None,
         data.run_all_enabled,
-        tenant_slug=tenant.slug,
+        api_key=request.headers.get("X-API-Key", ""),
     )
     await session.commit()
     return experiments

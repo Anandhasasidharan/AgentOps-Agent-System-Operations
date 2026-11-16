@@ -12,10 +12,16 @@ from chaos_toolkit.scenarios import parse_scenario_yaml
 app = typer.Typer(help="Agent Chaos Toolkit CLI")
 
 API_BASE = "http://localhost:8002"
+DEFAULT_TIMEOUT = 60.0
+TIMEOUT_ENV = "CHAOS_TIMEOUT"
 
 
 def _headers(api_key: str) -> dict[str, str]:
     return {"X-API-Key": api_key, "Content-Type": "application/json"}
+
+
+def _client(base_url: str, api_key: str, timeout: float) -> httpx.Client:
+    return httpx.Client(base_url=base_url, headers=_headers(api_key), timeout=timeout)
 
 
 @app.command()
@@ -23,11 +29,18 @@ def apply(
     file: Path = typer.Argument(..., help="Path to YAML file containing ChaosScenario definitions"),
     api_key: str = typer.Option("dev-api-key", "--api-key", "-k"),
     base_url: str = typer.Option(API_BASE, "--base-url", "-u"),
+    timeout: float = typer.Option(
+        DEFAULT_TIMEOUT,
+        "--timeout",
+        "-t",
+        envvar=TIMEOUT_ENV,
+        help="HTTP timeout in seconds (default 60, env CHAOS_TIMEOUT)",
+    ),
 ) -> None:
     """Apply chaos scenario YAML definitions to the API."""
     content = file.read_text()
     docs = parse_scenario_yaml(content)
-    client = httpx.Client(base_url=base_url, headers=_headers(api_key))
+    client = _client(base_url, api_key, timeout)
 
     for doc in docs:
         meta = doc.metadata
@@ -52,9 +65,16 @@ def run(
     agent_id: str = typer.Argument(..., help="Agent ID to test"),
     api_key: str = typer.Option(..., "--api-key", "-k", help="API key (tenant slug)"),
     base_url: str = typer.Option(API_BASE, "--base-url", "-u"),
+    timeout: float = typer.Option(
+        DEFAULT_TIMEOUT,
+        "--timeout",
+        "-t",
+        envvar=TIMEOUT_ENV,
+        help="HTTP timeout in seconds (default 60, env CHAOS_TIMEOUT)",
+    ),
 ) -> None:
     """Run a single chaos experiment."""
-    client = httpx.Client(base_url=base_url, headers=_headers(api_key))
+    client = _client(base_url, api_key, timeout)
     payload = {"scenario_id": scenario_id, "agent_id": agent_id}
     resp = client.post("/api/v1/experiments", json=payload)
     resp.raise_for_status()
@@ -70,9 +90,16 @@ def batch(
     api_key: str = typer.Option(..., "--api-key", "-k", help="API key (tenant slug)"),
     all_scenarios: bool = typer.Option(True, "--all/--select"),
     base_url: str = typer.Option(API_BASE, "--base-url", "-u"),
+    timeout: float = typer.Option(
+        DEFAULT_TIMEOUT,
+        "--timeout",
+        "-t",
+        envvar=TIMEOUT_ENV,
+        help="HTTP timeout in seconds (default 60, env CHAOS_TIMEOUT)",
+    ),
 ) -> None:
     """Run all chaos scenarios against an agent."""
-    client = httpx.Client(base_url=base_url, headers=_headers(api_key))
+    client = _client(base_url, api_key, timeout)
     payload = {"agent_id": agent_id, "run_all_enabled": all_scenarios}
     resp = client.post("/api/v1/experiments/batch", json=payload)
     resp.raise_for_status()
@@ -88,9 +115,16 @@ def batch(
 def report(
     api_key: str = typer.Option(..., "--api-key", "-k", help="API key (tenant slug)"),
     base_url: str = typer.Option(API_BASE, "--base-url", "-u"),
+    timeout: float = typer.Option(
+        DEFAULT_TIMEOUT,
+        "--timeout",
+        "-t",
+        envvar=TIMEOUT_ENV,
+        help="HTTP timeout in seconds (default 60, env CHAOS_TIMEOUT)",
+    ),
 ) -> None:
     """Show resilience score summary."""
-    client = httpx.Client(base_url=base_url, headers=_headers(api_key))
+    client = _client(base_url, api_key, timeout)
     resp = client.get("/api/v1/resilience-score")
     resp.raise_for_status()
     data = resp.json()
@@ -109,9 +143,16 @@ def report(
 def seed(
     api_key: str = typer.Option("dev-api-key", "--api-key", "-k"),
     base_url: str = typer.Option(API_BASE, "--base-url", "-u"),
+    timeout: float = typer.Option(
+        DEFAULT_TIMEOUT,
+        "--timeout",
+        "-t",
+        envvar=TIMEOUT_ENV,
+        help="HTTP timeout in seconds (default 60, env CHAOS_TIMEOUT)",
+    ),
 ) -> None:
     """Seed built-in chaos scenarios."""
-    client = httpx.Client(base_url=base_url, headers=_headers(api_key))
+    client = _client(base_url, api_key, timeout)
     resp = client.post("/api/v1/scenarios/seed")
     resp.raise_for_status()
     data = resp.json()

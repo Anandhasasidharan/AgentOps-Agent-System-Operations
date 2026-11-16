@@ -8,6 +8,7 @@ from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from agent_slo.models import ErrorBudget, Metric, ServiceLevelIndicator, ServiceLevelObjective
 from agent_slo.yaml_spec import window_to_seconds
@@ -120,8 +121,10 @@ async def evaluate_all_slos(
     tenant_id: uuid.UUID,
     anchor: datetime | None = None,
 ) -> list[dict[str, Any]]:
-    stmt = select(ServiceLevelObjective).where(
-        ServiceLevelObjective.tenant_id == tenant_id,
+    stmt = (
+        select(ServiceLevelObjective)
+        .options(selectinload(ServiceLevelObjective.sli))
+        .where(ServiceLevelObjective.tenant_id == tenant_id)
     )
     result = await session.execute(stmt)
     slos = result.scalars().all()
@@ -159,6 +162,7 @@ async def evaluate_all_slos(
         statuses.append(
             {
                 "slo_id": slo.id,
+                "agent_id": slo.agent_id,
                 "slo_name": slo.name,
                 "sli_name": slo.sli.name,
                 "window": slo.window,

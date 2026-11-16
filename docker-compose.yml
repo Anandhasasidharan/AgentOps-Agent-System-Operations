@@ -1,10 +1,13 @@
 services:
   nats:
-    image: nats:latest
+    image: nats:2.10-alpine
+    volumes:
+      - ./nats.conf:/etc/nats/nats.conf:ro
+      - natsdata:/data/nats
     ports:
       - "4222:4222"
       - "8222:8222"
-    command: --http_port 8222
+    command: ["--config", "/etc/nats/nats.conf"]
 
   postgres:
     image: postgres:16-alpine
@@ -81,6 +84,8 @@ services:
       CHAOS_URL: "http://chaos-toolkit:8002"
       SLO_URL: "http://agent-slo-platform:8000"
       GATEWAY_URL: "http://gateway:8004"
+      GATEWAY_PUBLIC_URL: "${GATEWAY_PUBLIC_URL:-http://localhost:8004}"
+      API_KEY: "${API_KEY:-}"
       NATS_URL: "nats://nats:4222"
     depends_on:
       - circuit-breaker
@@ -97,6 +102,7 @@ services:
       - "8004:8004"
     environment:
       NATS_URL: "nats://nats:4222"
+      SLO_URL: "http://agent-slo-platform:8000"
     depends_on:
       nats:
         condition: service_started
@@ -129,4 +135,5 @@ services:
       - prometheus
 
 volumes:
+  natsdata:
   pgdata:

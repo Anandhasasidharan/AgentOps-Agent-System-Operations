@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import datetime, timezone
 
 import httpx
+
+logger = logging.getLogger(__name__)
 
 
 def _make_otlp_span(
@@ -58,7 +61,7 @@ def _make_otlp_span(
 
 async def emit_tool_call_span(
     endpoint: str,
-    tenant_slug: str,
+    api_key: str,
     agent_id: str,
     tool_name: str,
     blocked: bool,
@@ -68,9 +71,25 @@ async def emit_tool_call_span(
 ) -> None:
     if not endpoint:
         return
+    if not api_key:
+        logger.warning(
+            "Telemetry export skipped: no credentials",
+            extra={"event": "agentops.telemetry_export_failed", "reason": "missing_credentials"},
+        )
+        return
     payload = _make_otlp_span(agent_id, tool_name, blocked, duration_ms, token_count, risk_score)
     async with httpx.AsyncClient(timeout=2.0) as client:
         try:
-            await client.post(endpoint, json=payload, headers={"X-API-Key": tenant_slug})
-        except Exception:
-            pass
+            response = await client.post(endpoint, json=payload, headers={"X-API-Key": api_key})
+            response.raise_for_status()
+        except httpx.HTTPError as exc:
+            # Never log request headers, URLs, payloads, or exception messages.
+            response = getattr(exc, "response", None)
+            logger.warning(
+                "Telemetry export failed",
+                extra={
+                    "event": "agentops.telemetry_export_failed",
+                    "reason": type(exc).__name__,
+                    "status_code": response.status_code if response is not None else None,
+                },
+            )

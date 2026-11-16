@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging  # noqa: E402
 import uuid
@@ -19,13 +18,14 @@ from agentops_events import (
     create_nats_client,
     make_event,
     publish_event,
+    subscribe_breaches,
 )
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from circuit_breaker.config import Settings
-from circuit_breaker.db import engine, get_db
+from circuit_breaker.db import AsyncSessionLocal, engine, get_db
 from circuit_breaker.graph_monitor import get_graph
 from circuit_breaker.incident_engine import get_active_incidents, resolve_incident
 from circuit_breaker.kill_switch import (
@@ -45,11 +45,13 @@ from circuit_breaker.metrics import (
 from circuit_breaker.models import (
     AgentState,
     Base,
+    EnforcementReceipt,
     Incident,
     KillSwitch,
     Policy,
     ToolCall,
 )
+from circuit_breaker.policy_conditions import validate_conditions
 from circuit_breaker.predictor import get_prediction
 from circuit_breaker.proxy import intercept_tool_call
 from circuit_breaker.rollback_engine import execute_rollback
@@ -69,7 +71,6 @@ logger = logging.getLogger(__name__)
 settings = Settings()
 
 nats_nc = None
-sub_tasks: list[asyncio.Task] = []
 
 
 async def _pub(event: Any):
@@ -79,63 +80,106 @@ async def _pub(event: Any):
         events_dropped_total.labels(reason="publish_failed", service="circuit-breaker").inc()
 
 
-async def handle_slo_breach(msg):
+async def create_lockdown_policy(
+    session: AsyncSession,
+    tenant_id: uuid.UUID,
+    agent_id: str,
+) -> Policy | None:
+    """Create an immediate block policy scoped to one agent.
+
+    Returns ``None`` when the policy already exists. The policy blocks every
+    tool for that agent until an operator disables or deletes it.
+    """
+    existing = await session.execute(
+        select(Policy).where(
+            Policy.tenant_id == tenant_id,
+            Policy.name == f"auto-lockdown-{agent_id}",
+            Policy.enabled.is_(True),
+        )
+    )
+    if existing.scalar_one_or_none():
+        return None
+
+    policy = Policy(
+        tenant_id=tenant_id,
+        name=f"auto-lockdown-{agent_id}",
+        description=f"Auto-tightened after SLO breach for {agent_id}",
+        enabled=True,
+        priority=100,
+        policy_type="tool_blocklist",
+        conditions=validate_conditions("tool_blocklist", {"tools": ["*"], "agent_id": agent_id}),
+        action="block",
+    )
+    session.add(policy)
+    await session.flush()
+    return policy
+
+
+async def handle_slo_breach(msg, session_factory=None):
+    """Turn an SLO breach event into an agent-scoped lockdown policy."""
     try:
         data = json.loads(msg.data.decode())
+        if not isinstance(data, dict) or not isinstance(data.get("payload", {}), dict):
+            raise ValueError("Breach data and payload must be objects")
         payload = data.get("payload", {})
         agent_id = payload.get("agent_id") or data.get("agent_id")
         if not agent_id:
+            logger.warning(
+                "slo_breach_without_agent_id",
+                extra={"event": "agentops.slo_breach_ignored", "reason": "missing_agent_id"},
+            )
             return
-        from circuit_breaker.db import get_db
-
-        async with get_db() as session:
-            existing = await session.execute(
-                select(Policy).where(
-                    Policy.tenant_id == uuid.UUID(data["tenant_id"]),
-                    Policy.name == f"auto-lockdown-{agent_id}",
-                    Policy.enabled,
-                )
-            )
-            if existing.scalar_one_or_none():
-                return
-            policy = Policy(
-                tenant_id=uuid.UUID(data["tenant_id"]),
-                name=f"auto-lockdown-{agent_id}",
-                description=f"Auto-tightened after SLO breach for {agent_id}",
-                enabled=True,
-                priority=100,
-                policy_type="rate_limit",
-                conditions={"max_calls_per_minute": 5},
-                action="block",
-            )
-            session.add(policy)
+        if not isinstance(agent_id, str):
+            raise ValueError("Breach agent_id must be a string")
+        tenant_id = uuid.UUID(str(data["tenant_id"]))
+        event_id = uuid.UUID(str(data["event_id"])) if data.get("event_id") else None
+        factory = session_factory or AsyncSessionLocal
+        async with factory() as session:
+            if event_id:
+                if await session.get(EnforcementReceipt, (tenant_id, event_id)):
+                    return
+                session.add(EnforcementReceipt(tenant_id=tenant_id, event_id=event_id))
+            policy = await create_lockdown_policy(session, tenant_id, agent_id)
             await session.commit()
-            logger.info("auto-created lockdown policy for %s after SLO breach", agent_id)
+            if policy:
+                logger.info(
+                    "auto-created lockdown policy for %s after SLO breach",
+                    agent_id,
+                    extra={
+                        "event": "agentops.auto_lockdown_created",
+                        "tenant_id": str(tenant_id),
+                        "agent_id": agent_id,
+                        "policy_id": str(policy.id),
+                    },
+                )
     except Exception:
         logger.exception("error handling SLO breach in CB")
+        raise
 
 
 async def subscribe_cross_service():
     if not nats_nc:
         return
-    await nats_nc.subscribe("agentops.slo.breach.*", cb=handle_slo_breach)
+    await subscribe_breaches(nats_nc, handle_slo_breach)
     logger.info("CB subscribed to agentops.slo.breach.*")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global nats_nc
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    nats_nc = await create_nats_client(settings.nats_url)
-    task = asyncio.ensure_future(subscribe_cross_service())
-    sub_tasks.append(task)
-    yield
-    for t in sub_tasks:
-        t.cancel()
-    if nats_nc:
-        await nats_nc.close()
-    await engine.dispose()
+    nats_nc = None
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        nats_nc = await create_nats_client(settings.nats_url)
+        if settings.nats_url and nats_nc is None:
+            raise RuntimeError("Configured NATS is unavailable; enforcement events require NATS")
+        await subscribe_cross_service()
+        yield
+    finally:
+        if nats_nc:
+            await nats_nc.close()
+        await engine.dispose()
 
 
 app = FastAPI(title="Agent Circuit Breaker", version="0.1.0", lifespan=lifespan)
@@ -155,6 +199,7 @@ async def health() -> dict[str, str]:
 
 @app.post("/v1/intercept", response_model=InterceptResponse)
 async def intercept(
+    request: Request,
     data: ToolCallIn,
     tenant=Depends(get_tenant),
     session: AsyncSession = Depends(get_db),
@@ -171,7 +216,7 @@ async def intercept(
         duration_ms=data.duration_ms,
         token_count=data.token_count,
         cost=data.cost,
-        tenant_slug=tenant.slug,
+        api_key=request.headers.get("X-API-Key", ""),
     )
     verdict = result.get("decision", "allow")
     tool_calls_total.labels(verdict=verdict, tool_name=data.tool_name).inc()
@@ -230,14 +275,14 @@ async def predict(
 async def graph_status(
     tenant=Depends(get_tenant),
 ) -> dict[str, Any]:
-    return get_graph().status()
+    return get_graph(tenant.id).status()
 
 
 @app.get("/api/v1/graph/anomalies")
 async def graph_anomalies(
     tenant=Depends(get_tenant),
 ) -> list[dict[str, Any]]:
-    return get_graph().anomalies()
+    return get_graph(tenant.id).anomalies()
 
 
 # ─── Policies ──────────────────────────────────────────────────────────────────

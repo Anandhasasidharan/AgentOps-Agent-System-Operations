@@ -55,7 +55,15 @@ async def evaluate_policies(
 ) -> PolicyDecision:
     if policies is None:
         policies = await load_policies(session, tenant_id)
+    return evaluate_policies_sync(policies, tool_call, windowed_stats)
 
+
+def evaluate_policies_sync(
+    policies: list[Policy],
+    tool_call: ToolCall,
+    windowed_stats: dict[str, Any] | None = None,
+) -> PolicyDecision:
+    """Synchronous policy evaluation used by the native/reference engines."""
     for policy in policies:
         if _matches_policy(policy, tool_call, windowed_stats):
             if policy.action == "allow":
@@ -81,8 +89,14 @@ def _matches_policy(
     tool_call: ToolCall,
     windowed_stats: dict[str, Any] | None = None,
 ) -> bool:
-    cond = policy.conditions
+    cond = policy.conditions or {}
     tool_name = tool_call.tool_name
+
+    # Optional agent scope. A policy without agent_id keeps applying to every
+    # agent in the tenant (existing behavior).
+    scoped_agent = cond.get("agent_id")
+    if scoped_agent is not None and scoped_agent != tool_call.agent_id:
+        return False
 
     if policy.policy_type == "tool_allowlist":
         allowed = cond.get("tools", [])

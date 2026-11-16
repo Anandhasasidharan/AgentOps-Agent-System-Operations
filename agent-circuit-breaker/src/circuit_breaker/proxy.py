@@ -19,7 +19,7 @@ from circuit_breaker.graph_monitor import get_graph
 from circuit_breaker.incident_engine import create_incident
 from circuit_breaker.kill_switch import check_kill_switch
 from circuit_breaker.models import ToolCall
-from circuit_breaker.policy_engine import PolicyDecision, evaluate_policies, load_policies
+from circuit_breaker.policy_engine import PolicyDecision, load_policies
 from circuit_breaker.predictor import compute_proactive_risk
 from circuit_breaker.risk_engine import score_tool_call
 from circuit_breaker.state_tracker import update_agent_state
@@ -38,12 +38,12 @@ async def intercept_tool_call(
     duration_ms: float | None = None,
     token_count: int | None = None,
     cost: float | None = None,
-    tenant_slug: str | None = None,
+    api_key: str | None = None,
 ) -> dict[str, Any]:
     ts = datetime.now(timezone.utc)
 
     # 0. Record graph edge
-    get_graph().record_edge(agent_id, tool_name)
+    get_graph(tenant_id).record_edge(agent_id, tool_name)
 
     tool_call = ToolCall(
         tenant_id=tenant_id,
@@ -104,7 +104,9 @@ async def intercept_tool_call(
     # 4. Evaluate policies
     windowed_stats = await _get_windowed_stats(session, tenant_id, agent_id)
     policies = await load_policies(session, tenant_id)
-    decision: PolicyDecision = await evaluate_policies(
+    from circuit_breaker.native_engine import evaluate_policies_selected
+
+    decision: PolicyDecision = await evaluate_policies_selected(
         session, tenant_id, tool_call, policies, windowed_stats
     )
 
@@ -150,7 +152,7 @@ async def intercept_tool_call(
     asyncio.ensure_future(
         emit_tool_call_span(
             endpoint=settings.otel_exporter_endpoint,
-            tenant_slug=tenant_slug or "",
+            api_key=api_key or "",
             agent_id=agent_id,
             tool_name=tool_name,
             blocked=tool_call.blocked,
